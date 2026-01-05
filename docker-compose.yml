@@ -1,0 +1,106 @@
+# version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: signflow-postgres
+    environment:
+      POSTGRES_USER: signflow
+      POSTGRES_PASSWORD: signflow_dev_password
+      POSTGRES_DB: signflow_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - signflow-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: signflow-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - signflow-network
+
+  # MinIO Object Storage
+  minio:
+    image: minio/minio:latest
+    container_name: signflow-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - signflow-network
+
+  # FastAPI Backend
+  backend:
+    env_file:
+      - .env
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: signflow-backend
+    environment:
+      POSTGRES_USER: signflow
+      POSTGRES_PASSWORD: signflow_dev_password
+      POSTGRES_DB: signflow_db
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ENDPOINT: minio:9000
+      MINIO_BUCKET: signflow-documents
+      APP_NAME: SignFlow
+      APP_ENV: development
+      DEBUG: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - signflow-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  signflow-network:
+    driver: bridge
+
