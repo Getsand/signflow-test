@@ -1,5 +1,5 @@
 """
-SignFlow FastAPI Application - Phase A1
+SignFlow FastAPI Application
 """
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -14,56 +14,63 @@ from app.core.logging import setup_logging, get_logger
 from app.core.middleware import RequestIDMiddleware, CORSSecurityMiddleware
 from app.shared.exceptions import SignFlowException
 
-# Initialize settings and logging
+
+
+
+
 settings = get_settings()
-setup_logging()
-logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan manager"""
-    # Startup
+    logger = get_logger(__name__)
     logger.info("🚀 Starting SignFlow API...")
-    logger.info(f"Environment: {settings.app_env}")
-    logger.info(f"Debug mode: {settings.debug}")
-    
+    logger.info(f"Environment: {settings.APP_ENV}")
+    logger.info(f"Debug mode: {settings.DEBUG}")
+
     yield
-    
-    # Shutdown
+
     logger.info("🛑 Shutting down SignFlow API...")
     await engine.dispose()
 
 
-# Create FastAPI app
+# 1️⃣ CREATE APP FIRST
 app = FastAPI(
-    title=settings.app_name,
+    title=settings.APP_NAME,
     description="SignFlow - Document Signature Management System",
     version="0.1.0",
-    debug=settings.debug,
+    debug=settings.DEBUG,
     lifespan=lifespan,
 )
 
-# Add middleware (order matters - first added is outermost)
+# 2️⃣ SETUP LOGGING AFTER APP EXISTS
+setup_logging()
+logger = get_logger(__name__)
+
+# 3️⃣ MIDDLEWARE
 app.add_middleware(RequestIDMiddleware)
 app.add_middleware(CORSSecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [],
+    allow_origins=["*"] if settings.DEBUG else [],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# 4️⃣ ROUTERS (AFTER APP)
+from app.modules.auth.router import router as auth_router
+app.include_router(auth_router)
+from app.modules.files.router import router as files_router
+app.include_router(files_router)
 
-# Exception handlers
+# 5️⃣ EXCEPTION HANDLERS
 @app.exception_handler(SignFlowException)
 async def signflow_exception_handler(
     request: Request, exc: SignFlowException
 ) -> JSONResponse:
-    """Handle custom SignFlow exceptions"""
     logger.error(f"SignFlow exception: {exc.code} - {exc.message}")
-    
+
     status_map = {
         "NOT_FOUND": status.HTTP_404_NOT_FOUND,
         "VALIDATION_ERROR": status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -72,12 +79,10 @@ async def signflow_exception_handler(
         "UNAUTHORIZED": status.HTTP_401_UNAUTHORIZED,
         "FORBIDDEN": status.HTTP_403_FORBIDDEN,
     }
-    
-    status_code = status_map.get(exc.code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
     return JSONResponse(
-        status_code=status_code,
-        content=exc.to_dict()
+        status_code=status_map.get(exc.code, 500),
+        content=exc.to_dict(),
     )
 
 
@@ -85,47 +90,29 @@ async def signflow_exception_handler(
 async def general_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
-    """Handle unexpected exceptions"""
-    logger.error(f"Unexpected exception: {str(exc)}", exc_info=True)
-    
+    logger.error("Unexpected exception", exc_info=True)
+
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code=500,
         content={
             "error": {
                 "code": "INTERNAL_SERVER_ERROR",
                 "message": "An unexpected error occurred",
-                "details": {} if not settings.debug else {"error": str(exc)}
+                "details": {"error": str(exc)} if settings.DEBUG else {},
             }
-        }
+        },
     )
 
 
-# Health check endpoint
+# 6️⃣ HEALTH
 @app.get("/health", tags=["System"])
 async def health_check(request: Request):
-    """
-    Health check endpoint
-    
-    Returns the application status and basic info
-    """
-    logger.debug("Health check requested")
     return {
         "status": "healthy",
-        "app_name": settings.app_name,
-        "environment": settings.app_env,
+        "app_name": settings.APP_NAME,
+        "environment": settings.APP_ENV,
         "version": "0.1.0",
-        "request_id": getattr(request.state, "request_id", None)
+        "request_id": getattr(request.state, "request_id", None),
     }
 
-
-# Root endpoint
-@app.get("/", tags=["System"])
-async def root():
-    """Root endpoint"""
-    logger.debug("Root endpoint accessed")
-    return {
-        "message": "Welcome to SignFlow API",
-        "docs": "/docs",
-        "health": "/health"
-    }
 

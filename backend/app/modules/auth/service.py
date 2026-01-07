@@ -1,5 +1,6 @@
 from typing import Optional
 
+from app.modules.auth.models import User
 
 from app.modules.auth.repo import AuthRepository
 from app.modules.auth.constants import PASSWORD_MIN_LENGTH
@@ -12,7 +13,11 @@ from passlib.context import CryptContext
 
 # Assume User SQLAlchemy model is defined and imported elsewhere
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["argon2"],
+    deprecated="auto",
+)
 
 class AuthService:
     def __init__(self, repo: AuthRepository):
@@ -24,8 +29,11 @@ class AuthService:
         existing_user = await self.repo.get_user_by_email(email)
         if existing_user:
             raise UserAlreadyExistsError()
+        
         if len(password) < PASSWORD_MIN_LENGTH:
-            raise ValueError(f"Password must be at least {PASSWORD_MIN_LENGTH} characters long.")
+            raise ValueError(
+                f"Password must be at least {PASSWORD_MIN_LENGTH} characters long."
+            )
         hashed_password = pwd_context.hash(password)
         # User class must exist elsewhere with suitable constructor
         user = User(email=email, password_hash=hashed_password, name=name)

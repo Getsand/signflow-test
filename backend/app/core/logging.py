@@ -60,7 +60,8 @@ def setup_logging() -> None:
     Configure application logging with structured output
     """
     # Determine log level based on environment
-    log_level = logging.DEBUG if settings.debug else logging.INFO
+    log_level = logging.DEBUG if settings.DEBUG else logging.INFO
+
     
     # Create handler
     handler = logging.StreamHandler(sys.stdout)
@@ -80,7 +81,7 @@ def setup_logging() -> None:
     # Reduce noise from third-party libraries
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("sqlalchemy.engine").setLevel(
-        logging.INFO if settings.debug else logging.WARNING
+        logging.INFO if settings.DEBUG else logging.WARNING
     )
 
 

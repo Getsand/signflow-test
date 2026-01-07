@@ -34,4 +34,4 @@ def get_settings() -> Settings:
 
 
 # 🔴 THIS IS WHAT ALEMBIC EXPECTS
-settings = get_settings()
+# settings = get_settings()

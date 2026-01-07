@@ -1,6 +1,8 @@
 """
 SQLAlchemy 2.0 async database setup
 """
+
+
 from typing import AsyncGenerator
 
 from sqlalchemy import MetaData
@@ -69,4 +71,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
+
+
 
