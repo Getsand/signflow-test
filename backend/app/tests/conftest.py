@@ -8,7 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from httpx import AsyncClient
 
 from app.main import app
-from app.core.db import Base, get_db
+from app.core.base import Base
+from app.core.db import get_db
 from app.core.config import get_settings
 
 # Import models to ensure they're registered with Base.metadata

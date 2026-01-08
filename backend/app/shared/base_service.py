@@ -5,7 +5,7 @@ from typing import Generic, TypeVar, Optional, List, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import Base
+from app.core.base import Base
 from app.shared.base_repo import BaseRepository
 from app.core.logging import get_logger
 

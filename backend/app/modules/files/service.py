@@ -1,70 +1,104 @@
-from uuid import uuid4
+"""
+File service - Business logic for file uploads
+"""
 
-from app.core.storage import get_s3_client
+from uuid import uuid4, UUID
+
+from minio.error import S3Error
+
 from app.modules.files.repo import FileRepository
-from app.modules.files.models import FileObject
+from app.modules.files.models import FileStatus
+from app.core.storage import (
+    get_internal_minio_client,
+    generate_presigned_put_url,
+    MINIO_BUCKET,
+)
 
-# ---- Product rules (can move to constants later)
-MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+# ---- Upload Rules ----
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
 ALLOWED_MIME_TYPES = {
     "application/pdf",
     "image/png",
     "image/jpeg",
-    "text/plain",
 }
 
 
 class FileService:
     def __init__(self, repo: FileRepository):
         self.repo = repo
-        self.s3 = get_s3_client()
+        self.minio = get_internal_minio_client()
 
     async def create_presigned_upload(
         self,
         *,
-        user_id,
         filename: str,
         mime_type: str,
-        size: int,
-    ):
-        # 1️⃣ Validate
-        if size <= 0 or size > MAX_FILE_SIZE:
-            raise ValueError("Invalid file size")
-
-        if mime_type not in ALLOWED_MIME_TYPES:
-            raise ValueError("Unsupported file type")
-
-        # 2️⃣ Generate storage key (never trust filename alone)
+        owner_id: UUID,
+    ) -> dict:
+        """
+        Generate presigned upload URL and create DB record.
+        
+        Returns:
+            dict with file_id, upload_url, storage_key, expires_in
+        """
+        # ---- Generate storage path ----
         file_id = uuid4()
         storage_key = f"uploads/{file_id}/{filename}"
 
-        # 3️⃣ Create DB record (PENDING)
-        file_obj = FileObject(
-            id=file_id,
-            owner_id=user_id,
+        # ---- Create DB record (UPLOADING status) ----
+        file_obj = await self.repo.create_file(
+            owner_id=owner_id,
+            bucket=MINIO_BUCKET,  # REQUIRED: Must not be NULL
             filename=filename,
-            mime_type=mime_type,
-            size=size,
             storage_key=storage_key,
-            status="pending",
+            mime_type=mime_type,
         )
 
-        await self.repo.create(file_obj)
-
-        # 4️⃣ Generate presigned URL
-        upload_url = self.s3.generate_presigned_url(
-            "put_object",
-            Params={
-                "Bucket": "signflow-documents",
-                "Key": storage_key,
-                "ContentType": mime_type,
-            },
-            ExpiresIn=900,  # 15 minutes
-        )
+        # ---- Generate presigned URL ----
+        upload_url = generate_presigned_put_url(storage_key)
 
         return {
+            "file_id": str(file_obj.id),
             "upload_url": upload_url,
-            "file_id": str(file_id),
             "storage_key": storage_key,
             "expires_in": 900,
         }
+
+    async def finalize_upload(
+        self, 
+        *, 
+        file_id: UUID, 
+        owner_id: UUID
+    ) -> dict:
+        """
+        Verify object exists in MinIO and mark as COMPLETED.
+        """
+        # ---- Check ownership ----
+        file_obj = await self.repo.get_by_id(file_id=file_id, owner_id=owner_id)
+        if not file_obj:
+            raise ValueError("File not found or access denied")
+
+        # ---- Check upload status ----
+        if file_obj.status == FileStatus.COMPLETED:
+            return file_obj
+        
+        if file_obj.status == FileStatus.FAILED:
+            raise ValueError("Upload already failed")
+
+        # ---- Verify object exists in MinIO ----
+        try:
+            stat = self.minio.stat_object(
+                bucket_name=file_obj.bucket,
+                object_name=file_obj.storage_key,
+            )
+        except S3Error:
+            await self.repo.mark_failed(file_id=file_id)
+            raise ValueError("File not found in storage")
+
+        # ---- Mark as completed ----
+        await self.repo.mark_completed(file_id=file_id, size=stat.size)
+        
+        # ---- Return updated object ----
+        updated_obj = await self.repo.get_by_id(file_id=file_id, owner_id=owner_id)
+        return updated_obj

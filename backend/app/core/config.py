@@ -17,10 +17,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = Field(..., env="REDIS_URL")
 
     # MinIO
-    MINIO_ENDPOINT: str
-    MINIO_ACCESS_KEY: str
-    MINIO_SECRET_KEY: str
-    MINIO_BUCKET: str
+    MINIO_INTERNAL_ENDPOINT: str = "minio:9000"
+    MINIO_PUBLIC_ENDPOINT: str = "localhost:9000"
+    MINIO_ACCESS_KEY: str = "minioadmin"
+    MINIO_SECRET_KEY: str = "minioadmin"
+    MINIO_BUCKET: str = "signflow-documents"
     MINIO_SECURE: bool = False
 
     class Config:

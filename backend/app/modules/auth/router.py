@@ -6,6 +6,8 @@ from app.modules.auth.schemas import UserCreate, UserLogin, UserRead
 from app.modules.auth.service import AuthService
 from app.modules.auth.repo import AuthRepository
 from app.core.deps import get_current_user
+from app.core.security import create_access_token
+
 from app.core.db import get_db
 
 router = APIRouter(
@@ -52,9 +54,14 @@ async def login(
             email=login_in.email,
             password=login_in.password,
         )
+        access_token = create_access_token(
+            {"sub": str(user.id)}
+        )
         # JWT will be added later
         return {
             "message": "Login successful",
+            "access_token": access_token,
+            "token_type": "bearer",
             "user_id": user.id,
         }
     except Exception as e:

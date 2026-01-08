@@ -6,7 +6,7 @@ from typing import Generic, Type, TypeVar, Optional, List, Any
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.db import Base
+from app.core.base import Base
 from app.shared.exceptions import NotFoundError, DatabaseError
 
 # Type variable for model class
