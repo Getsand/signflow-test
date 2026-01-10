@@ -63,6 +63,8 @@ from app.modules.auth.router import router as auth_router
 app.include_router(auth_router)
 from app.modules.files.router import router as files_router
 app.include_router(files_router)
+from app.modules.signatures.router import router as signatures_router
+app.include_router(signatures_router)
 
 # 5️⃣ EXCEPTION HANDLERS
 @app.exception_handler(SignFlowException)
