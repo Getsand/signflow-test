@@ -17,6 +17,7 @@ class FileStatus(str, enum.Enum):
     UPLOADING = "UPLOADING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    LOCKED = "LOCKED"  # File is signed and locked
 class FileObject(Base):
     __tablename__ = "file_objects"
 
@@ -64,6 +65,18 @@ class FileObject(Base):
         Enum(FileStatus),
         nullable=False,
         default=FileStatus.UPLOADING,
+    )
+
+    # SHA-256 hash of final signed PDF
+    document_hash: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    # Timestamp when file was locked (all signatures complete)
+    locked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     created_at: Mapped[datetime] = mapped_column(

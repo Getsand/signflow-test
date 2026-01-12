@@ -7,6 +7,7 @@ This is pure metadata - no PDF manipulation in this milestone.
 import uuid
 import enum
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import String, Integer, Float, DateTime, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -74,6 +75,12 @@ class SignatureField(Base):
         Enum(SignatureFieldStatus, name='signaturefieldstatus'),
         nullable=False,
         default=SignatureFieldStatus.PENDING,
+    )
+
+    # Timestamp when signed (NULL if still pending)
+    signed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
     )
 
     # Timestamps

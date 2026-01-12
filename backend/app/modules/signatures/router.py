@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_db
 from app.core.security import get_current_user
 from app.modules.auth.models import User
-from app.modules.signatures.schemas import SignatureFieldCreate, SignatureFieldOut
+from app.modules.signatures.schemas import (
+    SignatureFieldCreate,
+    SignatureFieldOut,
+    SignatureSubmit,
+)
 from app.modules.signatures.service import SignatureFieldService
 from app.modules.signatures.repo import SignatureFieldRepository
 from app.modules.files.repo import FileRepository
@@ -119,3 +123,57 @@ async def delete_signature_field(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/fields/{field_id}/sign", response_model=SignatureFieldOut)
+async def sign_signature_field(
+    field_id: UUID,
+    payload: SignatureSubmit,
+    current_user: User = Depends(get_current_user),
+    service: SignatureFieldService = Depends(get_signature_service),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sign a signature field - applies signature to the PDF.
+    
+    This is the CORE signing operation that:
+    1. Validates authorization (only assigned user can sign)
+    2. Checks sequential signing (previous fields must be signed first)
+    3. Downloads PDF from MinIO
+    4. Applies signature image/text to PDF at specified coordinates
+    5. Uploads modified PDF back to MinIO
+    6. Marks field as SIGNED
+    7. If all fields signed, locks the file
+    
+    Rules:
+    - Only assigned user can sign
+    - Field must be PENDING
+    - File must not be LOCKED
+    - Sequential signing enforced
+    
+    Request body:
+    - signature_type: "DRAW" | "UPLOAD" | "TYPED"
+    - signature_image_base64: Required for DRAW/UPLOAD
+    - typed_name: Required for TYPED
+    
+    Returns the updated signature field with status=SIGNED.
+    """
+    try:
+        signed_field = await service.sign_field(
+            field_id=field_id,
+            user_id=current_user.id,
+            signature_type=payload.signature_type,
+            signature_image_base64=payload.signature_image_base64,
+            typed_name=payload.typed_name,
+        )
+        await db.commit()
+        return signed_field
+        
+    except ValueError as e:
+        # Business logic errors (unauthorized, already signed, etc.)
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        # Unexpected errors
+        raise HTTPException(status_code=500, detail=f"Signing failed: {str(e)}")

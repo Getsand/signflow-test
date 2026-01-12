@@ -3,8 +3,9 @@ Repository for signature fields - pure database operations
 """
 from typing import List, Optional
 from uuid import UUID
+from datetime import datetime
 
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.signatures.models import SignatureField, SignatureFieldStatus
@@ -71,3 +72,31 @@ class SignatureFieldRepository:
         stmt = delete(SignatureField).where(SignatureField.id == field_id)
         result = await self.session.execute(stmt)
         return result.rowcount > 0
+
+    async def mark_signed(self, field_id: UUID) -> None:
+        """
+        Mark a signature field as SIGNED with timestamp.
+        """
+        stmt = (
+            update(SignatureField)
+            .where(SignatureField.id == field_id)
+            .values(
+                status=SignatureFieldStatus.SIGNED,
+                signed_at=datetime.utcnow(),
+            )
+        )
+        await self.session.execute(stmt)
+
+    async def count_pending_fields(self, file_id: UUID) -> int:
+        """
+        Count how many PENDING signature fields remain for a file.
+        """
+        stmt = (
+            select(SignatureField)
+            .where(
+                SignatureField.file_id == file_id,
+                SignatureField.status == SignatureFieldStatus.PENDING,
+            )
+        )
+        result = await self.session.execute(stmt)
+        return len(list(result.scalars().all()))

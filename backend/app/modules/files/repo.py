@@ -1,5 +1,6 @@
 from typing import Optional
 from uuid import UUID
+from datetime import datetime
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,3 +98,36 @@ class FileRepository:
             .values(status=FileStatus.FAILED)
         )
         await self.session.execute(stmt)
+
+    async def mark_locked(
+        self,
+        *,
+        file_id: UUID,
+        document_hash: str,
+    ) -> None:
+        """
+        Mark file as LOCKED (all signatures complete).
+        Sets locked_at timestamp and document hash.
+        """
+        stmt = (
+            update(FileObject)
+            .where(FileObject.id == file_id)
+            .values(
+                status=FileStatus.LOCKED,
+                locked_at=datetime.utcnow(),
+                document_hash=document_hash,
+            )
+        )
+        await self.session.execute(stmt)
+
+    async def get_by_id_no_ownership_check(
+        self,
+        file_id: UUID,
+    ) -> Optional[FileObject]:
+        """
+        Fetch file by ID WITHOUT ownership check.
+        Used for internal operations like signing.
+        """
+        stmt = select(FileObject).where(FileObject.id == file_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
