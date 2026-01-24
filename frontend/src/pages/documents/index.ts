@@ -1,0 +1,3 @@
+export { DocumentDetail } from './DocumentDetail';
+
+

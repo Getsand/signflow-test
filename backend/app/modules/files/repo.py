@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
@@ -15,6 +15,7 @@ class FileRepository:
     async def create_file(
         self,
         *,
+        file_id: UUID,  # CRITICAL: Must match UUID used in storage_key
         owner_id: UUID,
         bucket: str,
         storage_key: str,
@@ -24,8 +25,17 @@ class FileRepository:
         """
         Create a new file record in UPLOADING state.
         Size is unknown at this stage.
+        
+        Args:
+            file_id: UUID to use for the file (must match UUID in storage_key)
+            owner_id: Owner user ID
+            bucket: MinIO bucket name
+            storage_key: Storage path (e.g., "uploads/{file_id}/filename.pdf")
+            filename: Original filename
+            mime_type: MIME type
         """
         file_obj = FileObject(
+            id=file_id,  # Use provided UUID to match storage_key
             owner_id=owner_id,
             bucket=bucket,
             storage_key=storage_key,
@@ -131,3 +141,20 @@ class FileRepository:
         stmt = select(FileObject).where(FileObject.id == file_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def list_user_files(
+        self,
+        *,
+        owner_id: UUID,
+    ) -> List[FileObject]:
+        """
+        List all files owned by a specific user.
+        Ordered by created_at DESC (newest first).
+        """
+        stmt = (
+            select(FileObject)
+            .where(FileObject.owner_id == owner_id)
+            .order_by(FileObject.created_at.desc())
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

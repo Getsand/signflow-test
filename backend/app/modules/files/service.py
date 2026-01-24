@@ -47,7 +47,9 @@ class FileService:
         storage_key = f"uploads/{file_id}/{filename}"
 
         # ---- Create DB record (UPLOADING status) ----
+        # CRITICAL: Pass file_id to ensure storage_key matches database id
         file_obj = await self.repo.create_file(
+            file_id=file_id,  # Use the same UUID for DB and storage path
             owner_id=owner_id,
             bucket=MINIO_BUCKET,  # REQUIRED: Must not be NULL
             filename=filename,
@@ -102,3 +104,20 @@ class FileService:
         # ---- Return updated object ----
         updated_obj = await self.repo.get_by_id(file_id=file_id, owner_id=owner_id)
         return updated_obj
+
+    async def list_user_files(self, *, owner_id: UUID):
+        """
+        List all files owned by the current user.
+        Returns files ordered by created_at DESC.
+        """
+        return await self.repo.list_user_files(owner_id=owner_id)
+
+    async def get_file_details(self, *, file_id: UUID, owner_id: UUID):
+        """
+        Get file details with ownership check.
+        Returns file object if user owns it, otherwise raises ValueError.
+        """
+        file_obj = await self.repo.get_by_id(file_id=file_id, owner_id=owner_id)
+        if not file_obj:
+            raise ValueError("File not found or access denied")
+        return file_obj

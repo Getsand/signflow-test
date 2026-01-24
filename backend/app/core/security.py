@@ -1,11 +1,13 @@
-import os
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt, JWTError, ExpiredSignatureError
 
-SECRET_KEY = os.getenv("SIGNFLOW_SECRET_KEY", "dev-secret-key")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+from app.core.config import get_settings
+
+settings = get_settings()
+SECRET_KEY = settings.JWT_SECRET_KEY
+ALGORITHM = settings.JWT_ALGORITHM
+ACCESS_TOKEN_EXPIRE_MINUTES = settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES
 
 
 from fastapi import Depends, HTTPException, status

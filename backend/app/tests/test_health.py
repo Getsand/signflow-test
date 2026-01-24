@@ -40,3 +40,4 @@ async def test_root_endpoint(client: AsyncClient):
     assert "docs" in data
     assert "health" in data
 
+

@@ -1,68 +1,130 @@
-# SignFlow - Document Signature Management System
+# SignFlow - Enterprise Document Signature Management System
 
-## Milestone A - Backend Foundation
+> A modern, full-stack SaaS platform for digital document signing and workflow management, inspired by Zoho Sign.
 
-FastAPI backend with PostgreSQL, Redis, and MinIO integration.
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19.2.3-61DAFB?logo=react)](https://reactjs.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql)](https://www.postgresql.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 
-### Stack
+SignFlow is a production-ready document signature management system that enables users to upload PDFs, place signature fields, manage signing workflows, and track document status. Built with modern technologies and best practices for scalability and maintainability.
 
-- **Python**: 3.11
-- **Framework**: FastAPI
-- **Database**: PostgreSQL 15
-- **ORM**: SQLAlchemy 2.0 (async)
-- **Migrations**: Alembic
-- **Cache**: Redis 7
-- **Storage**: MinIO
-- **Validation**: Pydantic v2
+## ✨ Features
 
-### Project Structure
+- **User Authentication**: Secure JWT-based authentication with email/password
+- **Document Management**: Upload, view, and manage PDF documents
+- **Signature Field Placement**: Interactive PDF viewer with drag-and-drop signature field placement
+- **Signing Workflows**: Create and manage signing requests with status tracking
+- **Presigned URLs**: Secure MinIO integration for document storage
+- **Real-time Status**: Track document status (UPLOADING, COMPLETED, LOCKED, FAILED)
+- **Responsive UI**: Modern React frontend with Zoho Sign-inspired design
+- **API Documentation**: Auto-generated OpenAPI/Swagger documentation
+
+## 🛠️ Tech Stack
+
+### Backend
+- **Python 3.11** - Modern Python with async support
+- **FastAPI 0.109** - High-performance async web framework
+- **SQLAlchemy 2.0** - Async ORM with type hints
+- **PostgreSQL 15** - Production-ready relational database
+- **Alembic** - Database migration management
+- **Redis 7** - Caching and session management
+- **MinIO** - S3-compatible object storage
+- **Pydantic v2** - Data validation and settings management
+- **JWT** - Secure token-based authentication
+
+### Frontend
+- **React 19.2** - Latest React with hooks
+- **TypeScript 5.9** - Type-safe JavaScript
+- **Vite 7.2** - Fast build tool and dev server
+- **Tailwind CSS 4.1** - Utility-first CSS framework
+- **React Router 7** - Client-side routing
+- **React-PDF 10.3** - PDF.js-based PDF rendering
+- **Axios** - HTTP client for API calls
+
+## 📁 Project Structure
 
 ```
 signflow/
-├── backend/
+├── backend/                    # FastAPI backend
 │   ├── app/
-│   │   ├── core/           # Core configuration and database
-│   │   │   ├── config.py   # Pydantic settings
-│   │   │   └── db.py       # SQLAlchemy 2.0 setup
-│   │   ├── models/         # Database models
-│   │   │   └── user.py     # User model
-│   │   └── main.py         # FastAPI application
-│   ├── alembic/            # Database migrations
-│   │   ├── versions/       # Migration files
-│   │   └── env.py          # Alembic environment
-│   ├── requirements.txt    # Python dependencies
-│   ├── Dockerfile          # Backend container
-│   └── alembic.ini         # Alembic configuration
-├── docker-compose.yml      # Multi-container orchestration
-└── Makefile               # Development commands
+│   │   ├── core/               # Core configuration
+│   │   │   ├── config.py       # Settings (Pydantic)
+│   │   │   ├── db.py           # Database connection
+│   │   │   ├── security.py     # JWT & password hashing
+│   │   │   └── storage.py      # MinIO integration
+│   │   ├── modules/            # Feature modules
+│   │   │   ├── auth/           # Authentication
+│   │   │   ├── files/          # File management
+│   │   │   ├── signatures/     # Signature fields
+│   │   │   └── signing_requests/ # Signing workflows
+│   │   ├── models.py           # SQLAlchemy models
+│   │   └── main.py             # FastAPI app
+│   ├── alembic/                # Database migrations
+│   ├── requirements.txt        # Python dependencies
+│   └── Dockerfile              # Backend container
+├── frontend/                    # React frontend
+│   ├── src/
+│   │   ├── components/        # Reusable components
+│   │   ├── pages/              # Page components
+│   │   ├── lib/                # API clients
+│   │   └── utils/              # Utilities
+│   ├── package.json
+│   └── vite.config.ts
+├── docker-compose.yml           # Multi-container setup
+├── Makefile                     # Development commands
+└── README.md                    # This file
 ```
 
-### Quick Start
+## 🚀 Quick Start
 
-1. **Start all services:**
+### Prerequisites
+
+- Docker & Docker Compose
+- Make (optional, but recommended)
+- Git
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone <repository-url>
+   cd signflow
+   ```
+
+2. **Start all services:**
    ```bash
    make up
+   # or
+   docker-compose up -d
    ```
 
-2. **Run initial migration:**
+3. **Run database migrations:**
    ```bash
    make migrate
+   # or
+   docker-compose exec backend alembic upgrade head
    ```
 
-3. **View logs:**
+4. **Start frontend development server:**
    ```bash
-   make logs
+   cd frontend
+   npm install
+   npm run dev
    ```
 
-4. **Access the API:**
+5. **Access the application:**
+   - Frontend: http://localhost:5173
    - Backend API: http://localhost:8000
-   - API Documentation: http://localhost:8000/docs
-   - Health Check: http://localhost:8000/health
-
-5. **Access services:**
+   - API Docs: http://localhost:8000/docs
    - MinIO Console: http://localhost:9001 (admin/admin)
-   - PostgreSQL: localhost:5432 (signflow/signflow_dev_password)
-   - Redis: localhost:6379
+
+### First User Setup
+
+1. Navigate to http://localhost:5173
+2. Click "Sign Up" to create your account
+3. Login with your credentials
+4. Upload a PDF document to get started
 
 ### Available Commands
 
@@ -160,4 +222,5 @@ See `backend/app/core/config.py` for all available options.
 ---
 
 **Status**: Milestone A Complete ✅
+
 

@@ -8,6 +8,7 @@ Strategy:
 """
 
 import os
+import logging
 from datetime import timedelta
 
 from minio import Minio
@@ -57,19 +58,76 @@ def generate_presigned_put_url(object_name: str) -> str:
     """
     Generate presigned PUT URL for client uploads.
     
-    Uses internal client (minio:9000).
-    Client must be able to resolve 'minio' hostname (add to hosts file).
+    NOTE: Presigned URLs include hostname in signature.
+    Cannot replace hostname without invalidating signature.
+    Client must be able to access minio:9000 (via hosts file or Docker network).
     
     Args:
         object_name: Storage key (e.g., "uploads/uuid/filename.pdf")
     
     Returns:
-        Presigned URL with minio:9000
+        Presigned PUT URL (as-is from MinIO, hostname in signature)
     """
     client = get_internal_minio_client()
     
-    return client.presigned_put_object(
+    # Return URL as-is - signature includes hostname
+    # Client must access using the same hostname (minio:9000)
+    # For browser access, add minio to hosts file: 127.0.0.1 minio
+    url = client.presigned_put_object(
         bucket_name=MINIO_BUCKET,
         object_name=object_name,
         expires=timedelta(minutes=15),
     )
+    
+    return url
+
+
+def generate_presigned_get_url(object_name: str, expires_minutes: int = 60) -> str:
+    """
+    Generate presigned GET URL for viewing/downloading files.
+    
+    NOTE: Presigned URLs include hostname in signature.
+    URL will contain minio:9000 - browser must be able to access it.
+    Add to hosts file: 127.0.0.1 minio
+    
+    Args:
+        object_name: Storage key (e.g., "uploads/uuid/filename.pdf")
+        expires_minutes: URL expiration time in minutes (default: 60)
+    
+    Returns:
+        Presigned GET URL (as-is from MinIO, hostname in signature)
+    
+    Raises:
+        S3Error: If object does not exist in bucket
+    """
+    client = get_internal_minio_client()
+    
+    # CRITICAL: Verify object exists before generating presigned URL
+    # This prevents returning URLs that return error documents (54-byte responses)
+    try:
+        client.stat_object(
+            bucket_name=MINIO_BUCKET,
+            object_name=object_name,
+        )
+    except S3Error as e:
+        # Log clearly for debugging
+        logger = logging.getLogger(__name__)
+        logger.error(
+            f"Object not found in MinIO: bucket={MINIO_BUCKET}, "
+            f"storage_key={object_name}, error={e}"
+        )
+        raise
+    
+    # Generate presigned URL - signature includes hostname
+    # Cannot replace hostname without invalidating signature
+    # Client must access using same hostname (minio:9000)
+    url = client.presigned_get_object(
+        bucket_name=MINIO_BUCKET,
+        object_name=object_name,
+        expires=timedelta(minutes=expires_minutes),
+    )
+    
+    logger = logging.getLogger(__name__)
+    logger.debug(f"Generated presigned GET URL: {url}")
+    
+    return url

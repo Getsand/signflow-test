@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = Field(..., env="REDIS_URL")
 
+    # JWT Authentication
+    JWT_SECRET_KEY: str = Field(default="dev-secret-key-change-in-production", env="SIGNFLOW_SECRET_KEY")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
     # MinIO
     MINIO_INTERNAL_ENDPOINT: str = "minio:9000"
     MINIO_PUBLIC_ENDPOINT: str = "localhost:9000"
