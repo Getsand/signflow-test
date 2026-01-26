@@ -158,3 +158,28 @@ class FileRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def delete_file(
+        self,
+        *,
+        file_id: UUID,
+        owner_id: UUID,
+    ) -> bool:
+        """
+        Delete a file record from database.
+        Only the owner can delete their files.
+        
+        Returns True if file was deleted, False if not found.
+        """
+        from sqlalchemy import delete
+        
+        stmt = (
+            delete(FileObject)
+            .where(
+                FileObject.id == file_id,
+                FileObject.owner_id == owner_id,
+            )
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        return result.rowcount > 0

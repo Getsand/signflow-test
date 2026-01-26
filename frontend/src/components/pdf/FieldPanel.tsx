@@ -19,6 +19,8 @@ interface FieldPanelProps {
   onFieldSelect?: (fieldId: string) => void;
   selectedFieldId?: string | null;
   disabled?: boolean;
+  fieldRoles?: Record<string, string>; // Map of fieldId -> role (UI only)
+  onRoleChange?: (fieldId: string, role: string) => void; // UI-only role update
 }
 
 interface FieldType {
@@ -41,6 +43,8 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
   onFieldSelect,
   selectedFieldId,
   disabled = false,
+  fieldRoles = {},
+  onRoleChange,
 }) => {
   // Define all field types (matching Zoho Sign)
   const fieldTypes: FieldType[] = [
@@ -238,53 +242,76 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
                   Page {pageNumber}
                 </h4>
                 <div className="space-y-2">
-                  {fieldsByPage[pageNumber].map((field) => (
-                    <div
-                      key={field.id}
-                      onClick={() => onFieldSelect?.(field.id)}
-                      className={`
-                        p-3 rounded-lg border transition-colors cursor-pointer
-                        ${
-                          selectedFieldId === field.id
-                            ? 'border-indigo-500 bg-indigo-50'
-                            : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                        }
-                      `}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <StatusBadge status={field.status} size="sm" />
+                  {fieldsByPage[pageNumber].map((field) => {
+                    const fieldRole = fieldRoles[field.id] || 'Signer 1';
+                    // Safely get field type - handle missing signature_type gracefully
+                    const fieldTypeId = field.signature_type || 'signature';
+                    const fieldTypeIcon = fieldTypes.find(t => t.id === fieldTypeId)?.icon || fieldTypes[0].icon;
+                    
+                    return (
+                      <div
+                        key={field.id}
+                        onClick={() => onFieldSelect?.(field.id)}
+                        className={`
+                          p-3 rounded-lg border transition-colors cursor-pointer
+                          ${
+                            selectedFieldId === field.id
+                              ? 'border-indigo-500 bg-indigo-50'
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }
+                        `}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div className="text-gray-600">
+                                {fieldTypeIcon}
+                              </div>
+                              <StatusBadge status={field.status} size="sm" />
+                              <span className="text-xs text-gray-500">Page {field.page_number}</span>
+                            </div>
+                            
+                            {/* Role dropdown */}
+                            <div className="mb-2">
+                              <label className="text-xs text-gray-500 block mb-1">Role</label>
+                              <select
+                                value={fieldRole}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  onRoleChange?.(field.id, e.target.value);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                                disabled={disabled || field.status === 'SIGNED'}
+                              >
+                                <option value="Signer 1">Signer 1</option>
+                                <option value="Signer 2">Signer 2</option>
+                              </select>
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-600">
-                            Position: {field.x.toFixed(0)}, {field.y.toFixed(0)}
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            Size: {field.width.toFixed(0)} × {field.height.toFixed(0)}
-                          </p>
+                          {field.status === 'PENDING' && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteField(field.id);
+                              }}
+                              className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+                              title="Delete field"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                />
+                              </svg>
+                            </button>
+                          )}
                         </div>
-                        {field.status === 'PENDING' && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteField(field.id);
-                            }}
-                            className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                            title="Delete field"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                              />
-                            </svg>
-                          </button>
-                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}

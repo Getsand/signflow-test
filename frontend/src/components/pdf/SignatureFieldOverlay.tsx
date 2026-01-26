@@ -18,6 +18,8 @@ interface SignatureFieldOverlayProps {
   onUpdate?: (fieldId: string, x: number, y: number, width: number, height: number) => void;
   onDelete?: (fieldId: string) => void;
   editable?: boolean;
+  role?: string; // UI-only role assignment (default: "Signer 1")
+  isHighlighted?: boolean; // For scroll-to-field highlight effect
 }
 
 /**
@@ -32,6 +34,8 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
   onUpdate,
   onDelete,
   editable = true,
+  role = 'Signer 1',
+  isHighlighted = false,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -87,7 +91,8 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
   }, [editable, field.status, screenPos.x, adjustedY, screenDims.width, screenDims.height]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!editable || field.status === 'SIGNED') return;
+    const isLocked = field.status === 'SIGNED' || !editable;
+    if (isLocked) return;
 
     if (isDragging) {
       const newScreenX = e.clientX - dragStart.x;
@@ -145,39 +150,68 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
     }
   }, [isDragging, isResizing, handleMouseMove, handleMouseUp]);
 
-  const statusColor = field.status === 'SIGNED' ? 'bg-green-200 border-green-400' : 'bg-blue-200 border-blue-400';
-  const cursorStyle = editable && field.status === 'PENDING' ? 'cursor-move' : 'cursor-default';
+  // Determine field state styling
+  const isLocked = field.status === 'SIGNED' || !editable;
+  const isPending = field.status === 'PENDING' && editable;
+  
+  // Zoho-like styling: light blue background, blue dashed border
+  const baseStyles = isLocked
+    ? 'bg-gray-100 border-gray-300 cursor-not-allowed'
+    : 'bg-[#EAF3FF] border-[#4F8DF7] cursor-move';
+  
+  const borderStyle = isLocked ? 'border-2 border-solid' : 'border-2 border-dashed';
+  const highlightStyle = isHighlighted ? 'ring-2 ring-blue-500 ring-offset-2' : '';
 
   return (
     <div
       ref={boxRef}
-      className={`absolute ${statusColor} border-2 ${cursorStyle} ${editable && field.status === 'PENDING' ? 'hover:opacity-80' : ''}`}
+      className={`absolute ${baseStyles} ${borderStyle} rounded-md ${highlightStyle} ${isPending ? 'hover:opacity-90' : ''}`}
       style={{
         left: `${screenPos.x}px`,
         top: `${adjustedY}px`,
         width: `${screenDims.width}px`,
         height: `${screenDims.height}px`,
         zIndex: isDragging || isResizing ? 1000 : 100,
+        borderRadius: '6px',
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Field label */}
-      <div className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-700 pointer-events-none">
-        {field.status === 'SIGNED' ? '✓ Signed' : 'Signature'}
+      {/* Role badge (top-left) */}
+      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-medium text-gray-600 pointer-events-none">
+        {role}
+      </div>
+
+      {/* Field content: pen icon + "Sign here" text */}
+      <div className="absolute inset-0 flex items-center justify-center gap-1.5 pointer-events-none">
+        {field.status === 'SIGNED' ? (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-green-700">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Signed</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            <span>Sign here</span>
+          </div>
+        )}
       </div>
 
       {/* Resize handle (bottom-right corner) */}
-      {editable && field.status === 'PENDING' && (
+      {isPending && (
         <div
-          className="resize-handle absolute bottom-0 right-0 w-3 h-3 bg-blue-600 cursor-se-resize"
+          className="resize-handle absolute bottom-0 right-0 w-3 h-3 bg-[#4F8DF7] cursor-se-resize rounded-br-md"
           style={{ transform: 'translate(50%, 50%)' }}
         />
       )}
 
       {/* Delete button */}
-      {editable && field.status === 'PENDING' && onDelete && (
+      {isPending && onDelete && (
         <button
-          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
+          className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600 shadow-sm"
           onClick={(e) => {
             e.stopPropagation();
             if (onDelete) onDelete(field.id);

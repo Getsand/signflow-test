@@ -121,3 +121,45 @@ class FileService:
         if not file_obj:
             raise ValueError("File not found or access denied")
         return file_obj
+
+    async def delete_file(
+        self,
+        *,
+        file_id: UUID,
+        owner_id: UUID,
+    ) -> None:
+        """
+        Delete a file from both MinIO storage and database.
+        
+        Only the owner can delete their files.
+        Raises ValueError if file not found or access denied.
+        """
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # ---- Check ownership and get file details ----
+        file_obj = await self.repo.get_by_id(file_id=file_id, owner_id=owner_id)
+        if not file_obj:
+            raise ValueError("File not found or access denied")
+        
+        # ---- Delete from MinIO storage ----
+        try:
+            self.minio.remove_object(
+                bucket_name=file_obj.bucket,
+                object_name=file_obj.storage_key,
+            )
+            logger.info(f"Deleted file from MinIO: {file_obj.storage_key}")
+        except S3Error as e:
+            # Log but don't fail - file might not exist in storage
+            logger.warning(f"Failed to delete file from MinIO: {e}")
+        
+        # ---- Delete from database ----
+        deleted = await self.repo.delete_file(
+            file_id=file_id,
+            owner_id=owner_id,
+        )
+        
+        if not deleted:
+            raise ValueError("File not found or access denied")
+        
+        logger.info(f"Deleted file record from database: {file_id}")

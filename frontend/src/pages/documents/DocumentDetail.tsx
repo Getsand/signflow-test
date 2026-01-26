@@ -243,7 +243,7 @@ export const DocumentDetail: React.FC = () => {
                               <StatusBadge status={field.status} size="sm" />
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">
-                              {field.signature_type || '-'}
+                              {field.signature_type ?? '-'}
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">
                               {field.signed_at

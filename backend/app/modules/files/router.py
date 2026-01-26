@@ -140,7 +140,7 @@ async def get_file(
                     height=field.height,
                     assigned_to=field.assigned_to,
                     status=field.status.value,
-                    signature_type=field.signature_type.value if field.signature_type else None,
+                    signature_type=None,  # SignatureField model doesn't have signature_type field
                     signed_at=field.signed_at,
                     created_at=field.created_at,
                 )
@@ -270,4 +270,48 @@ async def finalize_file(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
+        )
+
+
+@router.delete("/{file_id}")
+async def delete_file(
+    file_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Delete a file from both storage and database.
+    
+    Only the file owner can delete their files.
+    """
+    service = FileService(FileRepository(db))
+    
+    try:
+        await service.delete_file(
+            file_id=file_id,
+            owner_id=current_user.id,
+        )
+        return {"message": "File deleted successfully"}
+        
+    except ValueError as e:
+        error_msg = str(e).lower()
+        
+        if "not found" in error_msg or "access denied" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=str(e)
+            )
+            
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error deleting file {file_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete file. Please try again."
         )

@@ -61,6 +61,8 @@ export const Prepare: React.FC = () => {
   const [newFieldStart, setNewFieldStart] = useState<{ page: number; x: number; y: number } | null>(null);
   const [newFieldCurrent, setNewFieldCurrent] = useState<{ x: number; y: number } | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
+  const [fieldRoles, setFieldRoles] = useState<Record<string, string>>({}); // UI-only role assignment
+  const [highlightedFieldId, setHighlightedFieldId] = useState<string | null>(null);
 
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -98,6 +100,13 @@ export const Prepare: React.FC = () => {
         // Fetch existing signature fields
         const fields = await listSignatureFields(file_id);
         setSignatureFields(fields);
+        
+        // Initialize roles (UI only) - default to "Signer 1"
+        const initialRoles: Record<string, string> = {};
+        fields.forEach(field => {
+          initialRoles[field.id] = 'Signer 1';
+        });
+        setFieldRoles(initialRoles);
 
         setError(null);
       } catch (err: any) {
@@ -254,6 +263,8 @@ export const Prepare: React.FC = () => {
       });
 
       setSignatureFields((prev) => [...prev, newField]);
+      // Initialize role for new field (UI only)
+      setFieldRoles((prev) => ({ ...prev, [newField.id]: 'Signer 1' }));
       setError(null);
     } catch (err: any) {
       console.error('Failed to create signature field:', err);
@@ -287,6 +298,12 @@ export const Prepare: React.FC = () => {
     try {
       await deleteSignatureField(fieldId);
       setSignatureFields((prev) => prev.filter((f) => f.id !== fieldId));
+      // Remove role from state
+      setFieldRoles((prev) => {
+        const next = { ...prev };
+        delete next[fieldId];
+        return next;
+      });
       if (selectedFieldId === fieldId) {
         setSelectedFieldId(null);
       }
@@ -300,6 +317,34 @@ export const Prepare: React.FC = () => {
   const getFieldsForPage = (pageNumber: number): SignatureField[] => {
     return signatureFields.filter((f) => f.page_number === pageNumber);
   };
+
+  // Handle role change (UI only)
+  const handleRoleChange = (fieldId: string, role: string) => {
+    setFieldRoles((prev) => ({ ...prev, [fieldId]: role }));
+  };
+
+  // Handle field select from panel - scroll to field and highlight
+  const handleFieldSelect = useCallback((fieldId: string) => {
+    setSelectedFieldId(fieldId);
+    
+    const field = signatureFields.find(f => f.id === fieldId);
+    if (!field) return;
+
+    // Find the page element
+    const pageElement = pageRefs.current.get(field.page_number);
+    if (pageElement) {
+      // Scroll to the page
+      pageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      
+      // Highlight the field
+      setHighlightedFieldId(fieldId);
+      
+      // Remove highlight after 2 seconds
+      setTimeout(() => {
+        setHighlightedFieldId(null);
+      }, 2000);
+    }
+  }, [signatureFields]);
 
   if (isLoading) {
     return (
@@ -463,6 +508,8 @@ export const Prepare: React.FC = () => {
                             onUpdate={handleUpdateField}
                             onDelete={handleDeleteField}
                             editable={fileData?.status !== 'LOCKED'}
+                            role={fieldRoles[field.id] || 'Signer 1'}
+                            isHighlighted={highlightedFieldId === field.id}
                           />
                         ))}
 
@@ -499,9 +546,11 @@ export const Prepare: React.FC = () => {
           onStartPlacement={handleStartPlacement}
           onCancelPlacement={handleCancelPlacement}
           onDeleteField={handleDeleteField}
-          onFieldSelect={setSelectedFieldId}
+          onFieldSelect={handleFieldSelect}
           selectedFieldId={selectedFieldId}
           disabled={fileData?.status === 'LOCKED' || hasPartialData || false}
+          fieldRoles={fieldRoles}
+          onRoleChange={handleRoleChange}
         />
       </div>
     </div>

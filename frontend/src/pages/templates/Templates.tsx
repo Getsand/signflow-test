@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge, Button } from '../../components/ui';
-import { listFiles, FileListItem } from '../../lib/fileApi';
+import { listFiles, deleteFile, FileListItem } from '../../lib/fileApi';
 
 
 export const Templates: React.FC = () => {
@@ -16,6 +16,8 @@ export const Templates: React.FC = () => {
   const [files, setFiles] = useState<FileListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ fileId: string; filename: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch user's files on mount
   useEffect(() => {
@@ -41,9 +43,52 @@ export const Templates: React.FC = () => {
     fetchFiles();
   }, []);
 
+  // Refresh files list
+  const refreshFiles = async () => {
+    try {
+      setIsLoading(true);
+      const data = await listFiles();
+      const templateFiles = data.filter(
+        (file) => file.status === 'UPLOADING' || file.status === 'COMPLETED'
+      );
+      setFiles(templateFiles);
+      setError(null);
+    } catch (err) {
+      console.error('Failed to fetch files:', err);
+      setError('Failed to load documents');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle document click - navigate to prepare view
   const handleDocumentClick = (fileId: string) => {
     navigate(`/templates/${fileId}/prepare`);
+  };
+
+  // Handle delete button click
+  const handleDeleteClick = (e: React.MouseEvent, fileId: string, filename: string) => {
+    e.stopPropagation(); // Prevent navigation
+    setDeleteConfirm({ fileId, filename });
+  };
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm) return;
+
+    try {
+      setIsDeleting(true);
+      await deleteFile(deleteConfirm.fileId);
+      setDeleteConfirm(null);
+      // Refresh the files list
+      await refreshFiles();
+    } catch (err: any) {
+      console.error('Failed to delete file:', err);
+      setError(err.message || 'Failed to delete file');
+      setDeleteConfirm(null);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Format date
@@ -163,15 +208,55 @@ export const Templates: React.FC = () => {
 
               {/* Action Indicator */}
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <div className="flex items-center text-xs text-indigo-600 group-hover:text-indigo-700">
-                  <span>Click to prepare</span>
-                  <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center text-xs text-indigo-600 group-hover:text-indigo-700">
+                    <span>Click to prepare</span>
+                    <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                  <button
+                    onClick={(e) => handleDeleteClick(e, file.id, file.filename)}
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    title="Delete template"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete Template</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete <strong>{deleteConfirm.filename}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="secondary"
+                onClick={() => setDeleteConfirm(null)}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
