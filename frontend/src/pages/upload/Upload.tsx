@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from '../../components/ui';
 import { uploadFile } from '../../lib/fileApi';
 import { UploadProgress } from '../../types/file';
@@ -12,12 +12,25 @@ import { UploadProgress } from '../../types/file';
  */
 export const Upload: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string>('');
+
+  // Determine redirect destination based on where user came from
+  // If coming from templates page, redirect back to templates
+  // Otherwise, redirect to documents
+  const getRedirectPath = () => {
+    const state = location.state as { from?: string } | null;
+    if (state?.from === 'templates' || location.pathname.includes('template')) {
+      return '/templates';
+    }
+    // Default: redirect to templates since uploads are for templates
+    return '/templates';
+  };
 
 
   const handleDrag = (e: React.DragEvent) => {
@@ -94,8 +107,8 @@ export const Upload: React.FC = () => {
       setSelectedFile(null);
       setUploadProgress(0);
 
-      // Redirect to document detail page
-      navigate(`/documents/${fileMetadata.id}`);
+      // Redirect to templates page (where templates are managed)
+      navigate(getRedirectPath());
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed. Please try again.';
       setError(errorMessage);

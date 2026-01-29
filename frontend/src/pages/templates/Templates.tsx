@@ -113,7 +113,7 @@ export const Templates: React.FC = () => {
         <Button
           variant="primary"
           size="lg"
-          onClick={() => navigate('/upload')}
+          onClick={() => navigate('/upload', { state: { from: 'templates' } })}
           leftIcon={
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -163,7 +163,7 @@ export const Templates: React.FC = () => {
               <Button
                 variant="primary"
                 size="lg"
-                onClick={() => navigate('/upload')}
+                onClick={() => navigate('/upload', { state: { from: 'templates' } })}
                 leftIcon={
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -208,16 +208,35 @@ export const Templates: React.FC = () => {
 
               {/* Action Indicator */}
               <div className="mt-3 pt-3 border-t border-gray-100">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center text-xs text-indigo-600 group-hover:text-indigo-700">
-                    <span>Click to prepare</span>
-                    <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        console.log('[Templates] Use Template clicked, file.id:', file.id);
+                        navigate(`/signing-requests/new/${file.id}`);
+                      }}
+                      className="px-3 py-1.5 text-xs font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded transition-colors whitespace-nowrap shrink-0"
+                      title="Use Template"
+                    >
+                      Use Template
+                    </button>
+                    <div className="flex items-center text-xs text-gray-500 shrink-0">
+                      <span>or</span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDocumentClick(file.id);
+                        }}
+                        className="ml-1 text-indigo-600 hover:text-indigo-700 underline"
+                      >
+                        prepare
+                      </button>
+                    </div>
                   </div>
                   <button
                     onClick={(e) => handleDeleteClick(e, file.id, file.filename)}
-                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                    className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors shrink-0"
                     title="Delete template"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

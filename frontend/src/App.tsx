@@ -9,6 +9,8 @@ import { Documents } from './pages/documents/Documents';
 import { DocumentDetail } from './pages/documents/DocumentDetail';
 import { Prepare } from './pages/documents/Prepare';
 import { Templates } from './pages/templates';
+import { NewSigningRequest } from './pages/signing-requests';
+import { SignerPage } from './pages/signing';
 
 /**
  * Main App Component
@@ -23,6 +25,9 @@ function App() {
           {/* Auth Routes (Public) */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
+          
+          {/* Public Signing Route (No Auth Required) */}
+          <Route path="/sign/:token" element={<SignerPage />} />
 
           {/* Protected Routes with AppShell Layout */}
           <Route
@@ -91,6 +96,16 @@ function App() {
               <ProtectedRoute>
                 <ProtectedLayout>
                   <Prepare />
+                </ProtectedLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/signing-requests/new/:template_id"
+            element={
+              <ProtectedRoute>
+                <ProtectedLayout>
+                  <NewSigningRequest />
                 </ProtectedLayout>
               </ProtectedRoute>
             }

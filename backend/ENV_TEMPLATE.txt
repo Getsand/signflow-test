@@ -23,4 +23,11 @@ APP_NAME=SignFlow
 APP_ENV=development
 DEBUG=true
 
+# Email Configuration (Resend)
+# Get API key from https://resend.com
+RESEND_API_KEY=
+# Email sender address (must be verified in Resend)
+EMAIL_FROM=noreply@signflow.app
+# Frontend base URL for signing links
+FRONTEND_BASE_URL=http://localhost:5173
 

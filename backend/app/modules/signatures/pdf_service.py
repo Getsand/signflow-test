@@ -114,14 +114,34 @@ class PDFSigningService:
         # Calculate font size to fit the box
         font_size = min(rect.height * 0.6, 24)
         
-        # Insert text in italic style (simulates handwritten signature)
-        page.insert_text(
-            (rect.x0 + 5, rect.y0 + rect.height * 0.7),
-            name,
-            fontsize=font_size,
-            fontname="helv-italic",  # Helvetica Italic (built-in)
-            color=(0, 0, 0),
-        )
+        # Try to insert text with italic font, fallback to regular if needed
+        try:
+            # Use Times-Roman italic (more reliable than helv-italic)
+            page.insert_text(
+                (rect.x0 + 5, rect.y0 + rect.height * 0.7),
+                name,
+                fontsize=font_size,
+                fontname="tiro",  # Times-Roman italic (built-in)
+                color=(0, 0, 0),
+            )
+        except Exception:
+            # Fallback to regular font if italic fails
+            try:
+                page.insert_text(
+                    (rect.x0 + 5, rect.y0 + rect.height * 0.7),
+                    name,
+                    fontsize=font_size,
+                    fontname="helv",  # Helvetica regular (always available)
+                    color=(0, 0, 0),
+                )
+            except Exception:
+                # Last resort: use default font
+                page.insert_text(
+                    (rect.x0 + 5, rect.y0 + rect.height * 0.7),
+                    name,
+                    fontsize=font_size,
+                    color=(0, 0, 0),
+                )
 
     @staticmethod
     def calculate_pdf_hash(pdf_bytes: bytes) -> str:

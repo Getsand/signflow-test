@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
@@ -48,6 +48,7 @@ interface PageInfo {
 export const Prepare: React.FC = () => {
   const { file_id } = useParams<{ file_id: string }>();
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [fileData, setFileData] = useState<FileDetail | null>(null);
   const [viewUrl, setViewUrl] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export const Prepare: React.FC = () => {
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
   const [fieldRoles, setFieldRoles] = useState<Record<string, string>>({}); // UI-only role assignment
   const [highlightedFieldId, setHighlightedFieldId] = useState<string | null>(null);
+  const [expectedSignerCount, setExpectedSignerCount] = useState<number>(1); // Expected signers hint
 
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -107,6 +109,11 @@ export const Prepare: React.FC = () => {
           initialRoles[field.id] = 'Signer 1';
         });
         setFieldRoles(initialRoles);
+
+        // Infer expected signer count from unique roles
+        const uniqueRoles = new Set(Object.values(initialRoles));
+        const inferredCount = Math.max(1, Math.min(10, uniqueRoles.size));
+        setExpectedSignerCount(inferredCount);
 
         setError(null);
       } catch (err: any) {
@@ -320,7 +327,22 @@ export const Prepare: React.FC = () => {
 
   // Handle role change (UI only)
   const handleRoleChange = (fieldId: string, role: string) => {
-    setFieldRoles((prev) => ({ ...prev, [fieldId]: role }));
+    setFieldRoles((prev) => {
+      const updated = { ...prev, [fieldId]: role };
+      // Update expected signer count based on unique roles
+      const uniqueRoles = new Set(Object.values(updated));
+      const inferredCount = Math.max(1, Math.min(10, uniqueRoles.size));
+      setExpectedSignerCount(inferredCount);
+      return updated;
+    });
+  };
+
+  // Handle navigation to signing request page
+  const handleNextToSigners = () => {
+    if (!file_id) return;
+    navigate(`/signing-requests/new/${file_id}`, {
+      state: { expectedSignerCount },
+    });
   };
 
   // Handle field select from panel - scroll to field and highlight
@@ -388,6 +410,42 @@ export const Prepare: React.FC = () => {
           </Link>
         </div>
       </div>
+
+      {/* Expected Signers Hint */}
+      {signatureFields.length > 0 && (
+        <div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <label htmlFor="expected-signers" className="text-sm font-medium text-gray-700">
+                Expected signers:
+              </label>
+              <select
+                id="expected-signers"
+                value={expectedSignerCount}
+                onChange={(e) => setExpectedSignerCount(parseInt(e.target.value, 10))}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+              >
+                {Array.from({ length: 10 }, (_, i) => i + 1).map((count) => (
+                  <option key={count} value={count}>
+                    {count}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-gray-500">
+                (This is just a hint for the next step)
+              </span>
+            </div>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleNextToSigners}
+              disabled={fileData?.status === 'LOCKED'}
+            >
+              Next: Add Signers
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Error Message */}
       {error && (

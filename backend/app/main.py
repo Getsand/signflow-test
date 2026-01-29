@@ -67,6 +67,8 @@ from app.modules.signatures.router import router as signatures_router
 app.include_router(signatures_router)
 from app.modules.signing_requests.router import router as signing_requests_router
 app.include_router(signing_requests_router)
+from app.modules.signing_requests.signing_router import router as signing_router
+app.include_router(signing_router)
 
 # 5️⃣ EXCEPTION HANDLERS
 @app.exception_handler(SignFlowException)

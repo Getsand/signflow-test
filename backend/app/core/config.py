@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     MINIO_BUCKET: str = "signflow-documents"
     MINIO_SECURE: bool = False
 
+    # Email (Resend)
+    RESEND_API_KEY: str = Field(default="", env="RESEND_API_KEY")
+    EMAIL_FROM: str = Field(default="noreply@signflow.app", env="EMAIL_FROM")
+    FRONTEND_BASE_URL: str = Field(default="http://localhost:5173", env="FRONTEND_BASE_URL")
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
