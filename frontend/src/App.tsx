@@ -8,7 +8,7 @@ import { Upload } from './pages/upload/Upload';
 import { Documents } from './pages/documents/Documents';
 import { DocumentDetail } from './pages/documents/DocumentDetail';
 import { Prepare } from './pages/documents/Prepare';
-import { Templates } from './pages/templates';
+import { Templates, AddRecipients } from './pages/templates';
 import { NewSigningRequest } from './pages/signing-requests';
 import { SignerPage } from './pages/signing';
 
@@ -86,6 +86,16 @@ function App() {
               <ProtectedRoute>
                 <ProtectedLayout>
                   <Templates />
+                </ProtectedLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/templates/:file_id/recipients"
+            element={
+              <ProtectedRoute>
+                <ProtectedLayout>
+                  <AddRecipients />
                 </ProtectedLayout>
               </ProtectedRoute>
             }

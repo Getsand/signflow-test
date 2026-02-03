@@ -19,8 +19,12 @@ export const NewSigningRequest: React.FC = () => {
 
   console.log('[NewSigningRequest] Component rendered, template_id:', template_id);
 
-  // Get expected signer count from location state (optional)
-  const expectedSignerCountFromState = (location.state as { expectedSignerCount?: number })?.expectedSignerCount;
+  const locationState = location.state as {
+    expectedSignerCount?: number;
+    recipients?: { role: string; email: string }[];
+  };
+  const expectedSignerCountFromState = locationState?.expectedSignerCount;
+  const recipientsFromState = locationState?.recipients;
 
   const [fileData, setFileData] = useState<FileDetail | null>(null);
   const [signatureFields, setSignatureFields] = useState<SignatureField[]>([]);
@@ -55,43 +59,43 @@ export const NewSigningRequest: React.FC = () => {
         setTitle(fileDetail.filename);
         setSignatureFields(fields);
 
-        // Extract unique roles from fields
-        // Extract unique assigned_to values to determine roles
-        // Each unique assigned_to represents a different signer role
-        const uniqueAssignedTo = new Set<string>();
-        fields.forEach(field => {
-          uniqueAssignedTo.add(field.assigned_to);
-        });
+        let rolesArray: string[];
+        let initialRecipients: Record<string, string>;
 
-        // Create roles: Signer 1, Signer 2, etc. based on unique assigned_to
-        const rolesArray: string[] = [];
-        let roleIndex = 1;
-        uniqueAssignedTo.forEach(() => {
-          rolesArray.push(`Signer ${roleIndex}`);
-          roleIndex++;
-        });
-
-        // If no fields, default to Signer 1
-        if (rolesArray.length === 0) {
-          rolesArray.push('Signer 1');
-        }
-
-        // If expectedSignerCount is provided and is greater than current roles,
-        // pre-render additional empty signer rows
-        if (expectedSignerCountFromState && expectedSignerCountFromState > rolesArray.length) {
-          const additionalCount = expectedSignerCountFromState - rolesArray.length;
-          for (let i = 1; i <= additionalCount; i++) {
-            rolesArray.push(`Signer ${rolesArray.length + 1}`);
+        if (recipientsFromState && recipientsFromState.length > 0) {
+          // Use recipients from Add Recipients step (role + email)
+          rolesArray = recipientsFromState.map((r) => r.role);
+          initialRecipients = {};
+          recipientsFromState.forEach((r) => {
+            initialRecipients[r.role] = r.email ?? '';
+          });
+        } else {
+          // Derive roles from template fields: prefer field.role, else unique assigned_to
+          const roleSet = new Set<string>();
+          fields.forEach((field) => {
+            const r = (field as SignatureField & { role?: string }).role;
+            if (r) roleSet.add(r);
+            else roleSet.add(field.assigned_to);
+          });
+          let roleIndex = 1;
+          rolesArray = [];
+          roleSet.forEach(() => {
+            rolesArray.push(`Signer ${roleIndex}`);
+            roleIndex++;
+          });
+          if (rolesArray.length === 0) rolesArray.push('Signer 1');
+          if (expectedSignerCountFromState && expectedSignerCountFromState > rolesArray.length) {
+            for (let i = rolesArray.length; i < expectedSignerCountFromState; i++) {
+              rolesArray.push(`Signer ${rolesArray.length + 1}`);
+            }
           }
+          initialRecipients = {};
+          rolesArray.forEach((role) => {
+            initialRecipients[role] = '';
+          });
         }
 
         setRoles(rolesArray);
-
-        // Initialize recipients with empty emails
-        const initialRecipients: Record<string, string> = {};
-        rolesArray.forEach(role => {
-          initialRecipients[role] = '';
-        });
         setRecipients(initialRecipients);
 
         setError(null);

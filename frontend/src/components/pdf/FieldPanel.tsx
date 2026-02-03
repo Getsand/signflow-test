@@ -2,12 +2,11 @@
  * Field Panel Component
  * 
  * Right-side panel for managing signature fields on the PDF.
- * Zoho Sign-style field management interface with all field types.
+ * Zoho Sign-style: recipients first (Me + Signer 1, 2, ...), then field types.
  */
 
 import React from 'react';
 import { SignatureField } from '../../lib/signatureFieldApi';
-import { StatusBadge } from '../ui';
 
 interface FieldPanelProps {
   fields: SignatureField[];
@@ -19,8 +18,16 @@ interface FieldPanelProps {
   onFieldSelect?: (fieldId: string) => void;
   selectedFieldId?: string | null;
   disabled?: boolean;
-  fieldRoles?: Record<string, string>; // Map of fieldId -> role (UI only)
-  onRoleChange?: (fieldId: string, role: string) => void; // UI-only role update
+  fieldRoles?: Record<string, string>; // Map of fieldId -> role (Me | Signer 1 | Signer 2 | ...)
+  onRoleChange?: (fieldId: string, role: string) => void;
+  /** Zoho-style: list of recipients (Me, Signer 1, Signer 2, ...) shown above field types */
+  recipients?: string[];
+  /** Optional email per recipient for display (e.g. "Signer 1 - email@x.com") */
+  recipientEmails?: Record<string, string>;
+  /** Currently selected recipient for new fields */
+  selectedRecipient?: string;
+  onSelectRecipient?: (recipient: string) => void;
+  onAddRecipient?: () => void;
 }
 
 interface FieldType {
@@ -45,9 +52,24 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
   disabled = false,
   fieldRoles = {},
   onRoleChange,
+  recipients = ['Me', 'Signer 1'],
+  recipientEmails = {},
+  selectedRecipient = 'Signer 1',
+  onSelectRecipient,
+  onAddRecipient,
 }) => {
-  // Define all field types (matching Zoho Sign)
-  const fieldTypes: FieldType[] = [
+  const isMeSelected = selectedRecipient === 'Me';
+
+  const getRecipientLabel = (role: string) => {
+    const email = recipientEmails[role]?.trim();
+    if (role === 'Me') return email ? `Prefill by you (${email})` : 'Prefill by you';
+    return email ? `${role} ${email}` : role;
+  };
+  const getInitial = (role: string) =>
+    role === 'Me' ? 'P' : (role.match(/Signer (\d+)/)?.[1] ?? role).charAt(0);
+
+  // Standard and Custom field types (Zoho-style)
+  const allFieldTypes: FieldType[] = [
     {
       id: 'signature',
       label: 'Signature',
@@ -63,15 +85,6 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'date',
-      label: 'Sign Date',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       ),
     },
@@ -141,6 +154,36 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
       disabled: true,
     },
   ];
+  const standardFieldIds = ['signature', 'initial', 'fullname', 'email', 'datepicker', 'company', 'text'];
+  const standardFieldTypes = allFieldTypes.filter((t) => standardFieldIds.includes(t.id));
+  const customFieldTypes = allFieldTypes.filter((t) => !standardFieldIds.includes(t.id));
+
+  // Zoho-style: symbol (icon) on left, name on right — single row per field type
+  const renderFieldTypeRow = (type: FieldType) => {
+    const isActive = isPlacingField && fieldType === type.id;
+    const signatureDisabledForMe = type.id === 'signature' && isMeSelected;
+    const isDisabled = disabled || type.disabled || signatureDisabledForMe;
+    return (
+      <button
+        key={type.id}
+        type="button"
+        onClick={() => {
+          if (isActive) onCancelPlacement();
+          else if (!isDisabled) onStartPlacement(type.id);
+        }}
+        disabled={isDisabled}
+        title={type.disabled ? 'Coming soon' : signatureDisabledForMe ? 'Signature not available for Me' : type.label}
+        className={`
+          w-full flex items-center gap-2 px-2 py-1.5 rounded-md border text-left transition-all
+          ${isActive ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : isDisabled ? 'border-transparent bg-gray-50 text-gray-400 cursor-not-allowed' : 'border-transparent bg-white text-gray-700 hover:bg-indigo-50 hover:text-indigo-700'}
+        `}
+      >
+        <span className={`shrink-0 inline-flex text-gray-500 [&_svg]:w-4 [&_svg]:h-4 ${isActive ? 'text-indigo-600' : ''} ${isDisabled ? 'opacity-50' : ''}`}>{type.icon}</span>
+        <span className="flex-1 text-xs font-medium">{type.label}</span>
+        {type.disabled && <span className="text-[9px] text-gray-400 shrink-0">Soon</span>}
+      </button>
+    );
+  };
 
   // Group fields by page
   const fieldsByPage = fields.reduce((acc, field) => {
@@ -156,165 +199,118 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
     .sort((a, b) => a - b);
 
   return (
-    <div className="w-80 bg-white border-l border-gray-200 flex flex-col h-full">
-      {/* Panel Header */}
-      <div className="p-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Fields</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          {fields.length} field{fields.length !== 1 ? 's' : ''} placed
-        </p>
+    <div className="w-72 bg-white border-l border-gray-200 flex flex-col h-full min-h-0 shrink-0">
+      {/* Panel Header — compact */}
+      <div className="shrink-0 px-3 py-2 border-b border-gray-200">
+        <h2 className="text-sm font-semibold text-gray-900">Fields</h2>
+        <p className="text-[11px] text-gray-500">{fields.length} field{fields.length !== 1 ? 's' : ''} placed</p>
       </div>
 
-      {/* Field Types Grid */}
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Add Field</h3>
-        <div className="grid grid-cols-2 gap-2">
-          {fieldTypes.map((type) => {
-            const isActive = isPlacingField && fieldType === type.id;
-            const isDisabled = disabled || type.disabled;
-            
+      {/* Recipients — compact */}
+      <div className="shrink-0 px-3 py-2 border-b border-gray-200">
+        <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Recipients</h3>
+        <div className="space-y-0.5">
+          {recipients.map((recipient) => {
+            const isSelected = selectedRecipient === recipient;
+            const initial = getInitial(recipient);
+            const label = getRecipientLabel(recipient);
             return (
               <button
-                key={type.id}
-                onClick={() => {
-                  if (isActive) {
-                    onCancelPlacement();
-                  } else if (!isDisabled) {
-                    onStartPlacement(type.id);
-                  }
-                }}
-                disabled={isDisabled}
+                key={recipient}
+                type="button"
+                onClick={() => onSelectRecipient?.(recipient)}
+                disabled={disabled}
                 className={`
-                  flex flex-col items-center gap-2 p-3 rounded-lg border transition-all
-                  ${
-                    isActive
-                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                      : isDisabled
-                      ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700'
-                  }
+                  w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-all border-l-2
+                  ${isSelected ? 'bg-indigo-50 border-indigo-600 text-indigo-800' : 'border-transparent hover:bg-gray-50 text-gray-700'}
+                  ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
                 `}
-                title={type.disabled ? 'Coming soon' : type.label}
               >
-                <span className={isDisabled ? 'opacity-50' : ''}>{type.icon}</span>
-                <span className="text-xs font-medium text-center">{type.label}</span>
-                {type.disabled && (
-                  <span className="text-[10px] text-gray-400">Soon</span>
-                )}
+                <span className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
+                  {initial}
+                </span>
+                <span className="flex-1 min-w-0 text-xs font-medium truncate" title={label}>{label}</span>
               </button>
             );
           })}
+          {onAddRecipient && (
+            <button
+              type="button"
+              onClick={onAddRecipient}
+              disabled={disabled || recipients.length >= 10}
+              className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md border border-dashed border-gray-300 text-gray-500 hover:border-indigo-400 hover:text-indigo-600 text-xs font-medium transition-all disabled:opacity-50"
+              title="Add recipient"
+            >
+              <span className="shrink-0 w-6 h-6 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 text-xs">+</span>
+              Add recipient
+            </button>
+          )}
         </div>
+      </div>
 
+      {/* Field types — Zoho-style: symbol left, name right (list of rows) */}
+      <div className="shrink-0 px-3 py-2 border-b border-gray-200">
+        <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-1.5">Add field</h3>
+        <div className="space-y-0.5">
+          {standardFieldTypes.map(renderFieldTypeRow)}
+          {customFieldTypes.length > 0 && (
+            <>
+              <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mt-2 mb-1">Custom</div>
+              {customFieldTypes.map(renderFieldTypeRow)}
+            </>
+          )}
+        </div>
         {isPlacingField && (
-          <p className="text-xs text-gray-600 mt-3 p-2 bg-blue-50 rounded border border-blue-200">
-            Click and drag on the PDF to place a <strong>{fieldTypes.find(t => t.id === fieldType)?.label || 'field'}</strong>
+          <p className="text-[10px] text-indigo-600 mt-1.5 px-2 py-1 bg-indigo-50 rounded">
+            Drag on PDF to place <strong>{allFieldTypes.find((t) => t.id === fieldType)?.label ?? 'field'}</strong>
           </p>
         )}
       </div>
 
-      {/* Fields List */}
-      <div className="flex-1 overflow-y-auto">
+      {/* Placed fields — compact list, internal scroll only if many */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
         {fields.length === 0 ? (
-          <div className="p-8 text-center">
-            <svg
-              className="mx-auto h-8 w-8 text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-              />
-            </svg>
-            <p className="mt-2 text-sm text-gray-500">No fields placed yet</p>
-            <p className="text-xs text-gray-400 mt-1">Select a field type above to start</p>
+          <div className="p-4 text-center">
+            <p className="text-xs text-gray-500">No fields placed yet</p>
+            <p className="text-[10px] text-gray-400 mt-0.5">Select a field type above</p>
           </div>
         ) : (
-          <div className="p-4 space-y-4">
-            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Placed Fields</h3>
-            {sortedPages.map((pageNumber) => (
-              <div key={pageNumber}>
-                <h4 className="text-xs font-medium text-gray-600 mb-2">
-                  Page {pageNumber}
-                </h4>
-                <div className="space-y-2">
-                  {fieldsByPage[pageNumber].map((field) => {
-                    const fieldRole = fieldRoles[field.id] || 'Signer 1';
-                    // Safely get field type - handle missing signature_type gracefully
-                    const fieldTypeId = field.signature_type || 'signature';
-                    const fieldTypeIcon = fieldTypes.find(t => t.id === fieldTypeId)?.icon || fieldTypes[0].icon;
-                    
-                    return (
-                      <div
-                        key={field.id}
-                        onClick={() => onFieldSelect?.(field.id)}
-                        className={`
-                          p-3 rounded-lg border transition-colors cursor-pointer
-                          ${
-                            selectedFieldId === field.id
-                              ? 'border-indigo-500 bg-indigo-50'
-                              : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                          }
-                        `}
+          <div className="px-3 py-2 space-y-2">
+            <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Placed</h3>
+            <div className="space-y-1">
+              {sortedPages.flatMap((pageNumber) =>
+                fieldsByPage[pageNumber].map((field) => {
+                  const fieldRole = fieldRoles[field.id] || recipients[0] || 'Signer 1';
+                  const rawType = field.field_type?.toLowerCase() || field.signature_type || 'signature';
+                  const fieldTypeId = rawType === 'date' ? 'datepicker' : rawType;
+                  const fieldTypeIcon = allFieldTypes.find((t: FieldType) => t.id === fieldTypeId)?.icon || allFieldTypes[0].icon;
+                  return (
+                    <div
+                      key={field.id}
+                      onClick={() => onFieldSelect?.(field.id)}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-md border transition-colors cursor-pointer text-left ${selectedFieldId === field.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      <span className="shrink-0 text-gray-500 [&_svg]:w-3.5 [&_svg]:h-3.5">{fieldTypeIcon}</span>
+                      <span className="text-[10px] text-gray-500 shrink-0">P{field.page_number}</span>
+                      <select
+                        value={recipients.includes(fieldRole) ? fieldRole : recipients[0]}
+                        onChange={(e) => { e.stopPropagation(); onRoleChange?.(field.id, e.target.value); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 min-w-0 text-[10px] border-0 bg-transparent py-0 pr-5 focus:ring-0"
+                        disabled={disabled || field.status === 'SIGNED'}
                       >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="text-gray-600">
-                                {fieldTypeIcon}
-                              </div>
-                              <StatusBadge status={field.status} size="sm" />
-                              <span className="text-xs text-gray-500">Page {field.page_number}</span>
-                            </div>
-                            
-                            {/* Role dropdown */}
-                            <div className="mb-2">
-                              <label className="text-xs text-gray-500 block mb-1">Role</label>
-                              <select
-                                value={fieldRole}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  onRoleChange?.(field.id, e.target.value);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-full text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
-                                disabled={disabled || field.status === 'SIGNED'}
-                              >
-                                <option value="Signer 1">Signer 1</option>
-                                <option value="Signer 2">Signer 2</option>
-                              </select>
-                            </div>
-                          </div>
-                          {field.status === 'PENDING' && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteField(field.id);
-                              }}
-                              className="p-1 text-red-600 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-                              title="Delete field"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+                        {recipients.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                      {field.status === 'PENDING' && (
+                        <button onClick={(e) => { e.stopPropagation(); onDeleteField(field.id); }} className="shrink-0 p-0.5 text-red-500 hover:text-red-600 rounded" title="Delete">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         )}
       </div>

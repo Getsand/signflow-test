@@ -15,7 +15,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button, StatusBadge } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
@@ -34,6 +34,8 @@ if (typeof window !== 'undefined') {
   pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
 }
 
+// Backend requires assigned_to = real user ID (FK to users). We always use current user and store role (Me, Signer 1, 2) on the field; create_signing_request maps by role.
+
 
 
 
@@ -49,6 +51,8 @@ export const Prepare: React.FC = () => {
   const { file_id } = useParams<{ file_id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const stateRecipients = (location.state as { recipients?: { role: string; email: string }[] })?.recipients;
 
   const [fileData, setFileData] = useState<FileDetail | null>(null);
   const [viewUrl, setViewUrl] = useState<string | null>(null);
@@ -62,9 +66,12 @@ export const Prepare: React.FC = () => {
   const [newFieldStart, setNewFieldStart] = useState<{ page: number; x: number; y: number } | null>(null);
   const [newFieldCurrent, setNewFieldCurrent] = useState<{ x: number; y: number } | null>(null);
   const [selectedFieldId, setSelectedFieldId] = useState<string | null>(null);
-  const [fieldRoles, setFieldRoles] = useState<Record<string, string>>({}); // UI-only role assignment
+  const [fieldRoles, setFieldRoles] = useState<Record<string, string>>({}); // fieldId -> Me | Signer 1 | Signer 2 | ...
   const [highlightedFieldId, setHighlightedFieldId] = useState<string | null>(null);
-  const [expectedSignerCount, setExpectedSignerCount] = useState<number>(1); // Expected signers hint
+  const [expectedSignerCount, setExpectedSignerCount] = useState<number>(1);
+  // Zoho-style: recipients list (Me + Signer 1, 2, ...), select one then add fields
+  const [recipients, setRecipients] = useState<string[]>(['Me', 'Signer 1']);
+  const [selectedRecipient, setSelectedRecipient] = useState<string>('Signer 1');
 
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
@@ -102,18 +109,26 @@ export const Prepare: React.FC = () => {
         // Fetch existing signature fields
         const fields = await listSignatureFields(file_id);
         setSignatureFields(fields);
-        
-        // Initialize roles (UI only) - default to "Signer 1"
+
         const initialRoles: Record<string, string> = {};
-        fields.forEach(field => {
-          initialRoles[field.id] = 'Signer 1';
+        const uniqueRecipients = new Set<string>(
+          stateRecipients?.map((r) => r.role) ?? ['Me', 'Signer 1']
+        );
+        fields.forEach((field) => {
+          const role = field.role ?? (field.assigned_to === (user?.id ?? '') ? 'Me' : 'Signer 1');
+          initialRoles[field.id] = role;
+          uniqueRecipients.add(role);
         });
         setFieldRoles(initialRoles);
-
-        // Infer expected signer count from unique roles
-        const uniqueRoles = new Set(Object.values(initialRoles));
-        const inferredCount = Math.max(1, Math.min(10, uniqueRoles.size));
-        setExpectedSignerCount(inferredCount);
+        const sortedRecipients = Array.from(uniqueRecipients).sort((a, b) => {
+          if (a === 'Me') return -1;
+          if (b === 'Me') return 1;
+          const nA = parseInt(a.replace('Signer ', ''), 10) || 0;
+          const nB = parseInt(b.replace('Signer ', ''), 10) || 0;
+          return nA - nB;
+        });
+        setRecipients(sortedRecipients.length > 0 ? sortedRecipients : ['Me', 'Signer 1']);
+        setExpectedSignerCount(Math.max(1, Math.min(10, sortedRecipients.length || 2)));
 
         setError(null);
       } catch (err: any) {
@@ -129,7 +144,7 @@ export const Prepare: React.FC = () => {
     };
 
     fetchData();
-  }, [file_id]);
+  }, [file_id, user?.id]);
 
   // Handle PDF document load
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -248,7 +263,7 @@ export const Prepare: React.FC = () => {
     setIsPlacingField(false);
   }, [isPlacingField, newFieldStart, newFieldCurrent, pageInfos]);
 
-  // Create new signature field
+  // Create new signature field: assigned_to = current user (required by DB FK), role = selected recipient (Me, Signer 1, 2)
   const handleCreateField = async (
     page: number,
     x: number,
@@ -259,6 +274,8 @@ export const Prepare: React.FC = () => {
     if (!file_id || !user) return;
 
     try {
+      // Map frontend field ids to backend types (e.g. datepicker -> DATE)
+      const backendFieldType = fieldType === 'datepicker' ? 'DATE' : (fieldType ? fieldType.toUpperCase() : 'SIGNATURE');
       const newField = await createSignatureField({
         file_id,
         page,
@@ -266,16 +283,23 @@ export const Prepare: React.FC = () => {
         y,
         width,
         height,
-        assigned_to: user.id, // Assign to current user by default
+        assigned_to: user.id,
+        field_type: backendFieldType,
+        role: selectedRecipient,
       });
 
       setSignatureFields((prev) => [...prev, newField]);
-      // Initialize role for new field (UI only)
-      setFieldRoles((prev) => ({ ...prev, [newField.id]: 'Signer 1' }));
+      setFieldRoles((prev) => ({ ...prev, [newField.id]: selectedRecipient }));
       setError(null);
     } catch (err: any) {
-      console.error('Failed to create signature field:', err);
-      setError(err.response?.data?.detail || 'Failed to create signature field');
+      console.error('Failed to create signature field:', err?.response?.data ?? err);
+      const detail = err?.response?.data?.detail;
+      const msg = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: { msg?: string }) => d?.msg ?? '').filter(Boolean).join('. ') || 'Validation error'
+          : err?.message || 'Failed to create signature field';
+      setError(msg);
     }
   };
 
@@ -315,8 +339,14 @@ export const Prepare: React.FC = () => {
         setSelectedFieldId(null);
       }
     } catch (err: any) {
-      console.error('Failed to delete field:', err);
-      setError(err.response?.data?.detail || 'Failed to delete signature field');
+      console.error('Failed to delete signature field:', err?.response?.data ?? err);
+      const detail = err?.response?.data?.detail;
+      const msg = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: { msg?: string }) => d?.msg ?? '').filter(Boolean).join('. ') || 'Validation error'
+          : err?.message || 'Failed to delete signature field';
+      setError(msg);
     }
   };
 
@@ -325,23 +355,39 @@ export const Prepare: React.FC = () => {
     return signatureFields.filter((f) => f.page_number === pageNumber);
   };
 
-  // Handle role change (UI only)
+  // Handle recipient change for a placed field (UI only; backend assigned_to stays as created)
   const handleRoleChange = (fieldId: string, role: string) => {
-    setFieldRoles((prev) => {
-      const updated = { ...prev, [fieldId]: role };
-      // Update expected signer count based on unique roles
-      const uniqueRoles = new Set(Object.values(updated));
-      const inferredCount = Math.max(1, Math.min(10, uniqueRoles.size));
-      setExpectedSignerCount(inferredCount);
-      return updated;
+    setFieldRoles((prev) => ({ ...prev, [fieldId]: role }));
+    setRecipients((prev) => {
+      if (prev.includes(role)) return prev;
+      const next = [...prev, role].sort((a, b) => {
+        if (a === 'Me') return -1;
+        if (b === 'Me') return 1;
+        const nA = parseInt(a.replace('Signer ', ''), 10) || 0;
+        const nB = parseInt(b.replace('Signer ', ''), 10) || 0;
+        return nA - nB;
+      });
+      setExpectedSignerCount((c) => Math.max(c, Math.min(10, next.length)));
+      return next;
     });
   };
 
-  // Handle navigation to signing request page
+  const handleAddRecipient = () => {
+    const nextIndex = recipients.filter((r) => r.startsWith('Signer ')).length + 1;
+    const newRole = `Signer ${nextIndex}`;
+    setRecipients((prev) => [...prev, newRole]);
+    setSelectedRecipient(newRole);
+    setExpectedSignerCount((c) => Math.min(10, Math.max(c, nextIndex)));
+  };
+
+  // Handle navigation to signing request page (pass recipients from Add Recipients step if available)
   const handleNextToSigners = () => {
     if (!file_id) return;
     navigate(`/signing-requests/new/${file_id}`, {
-      state: { expectedSignerCount },
+      state: {
+        expectedSignerCount: Math.max(expectedSignerCount, recipients.length),
+        recipients: stateRecipients ?? recipients.map((role) => ({ role, email: '' })),
+      },
     });
   };
 
@@ -396,75 +442,59 @@ export const Prepare: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)]">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white">
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-white overflow-hidden">
+      {/* Header — static, always visible */}
+      <div className="shrink-0 flex items-center justify-between px-6 py-3 border-b border-gray-200 bg-white">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Prepare Document</h1>
-          <p className="text-sm text-gray-600 mt-0.5">{fileData?.filename || 'Loading...'}</p>
+          <h1 className="text-xl font-semibold text-gray-900">Prepare Document</h1>
+          <p className="text-sm text-gray-500 mt-1">{fileData?.filename || 'Loading...'}</p>
         </div>
         <div className="flex items-center gap-3">
           {fileData && <StatusBadge status={fileData.status} size="sm" />}
-          <Link to={`/documents/${file_id || ''}`}>
+          <Link to={file_id ? `/documents/${file_id}` : '/documents'}>
             <Button variant="outline" size="sm">Back</Button>
           </Link>
         </div>
       </div>
 
-      {/* Expected Signers Hint */}
-      {signatureFields.length > 0 && (
-        <div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <label htmlFor="expected-signers" className="text-sm font-medium text-gray-700">
-                Expected signers:
-              </label>
-              <select
-                id="expected-signers"
-                value={expectedSignerCount}
-                onChange={(e) => setExpectedSignerCount(parseInt(e.target.value, 10))}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-              >
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((count) => (
-                  <option key={count} value={count}>
-                    {count}
-                  </option>
-                ))}
-              </select>
-              <span className="text-xs text-gray-500">
-                (This is just a hint for the next step)
-              </span>
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleNextToSigners}
-              disabled={fileData?.status === 'LOCKED'}
-            >
-              Next: Add Signers
-            </Button>
+      {/* Recipients summary + Next: Add Signers — static, always visible */}
+      <div className="shrink-0 px-6 py-2.5 border-b border-gray-200 bg-gray-50/80">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="font-medium text-gray-700">Recipients:</span>
+            <span className="text-gray-600">{recipients.join(', ')}</span>
+            <span className="text-gray-500 text-xs hidden sm:inline">— Select in right panel, then add fields.</span>
           </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleNextToSigners}
+            disabled={fileData?.status === 'LOCKED'}
+          >
+            Next: Add Signers
+          </Button>
         </div>
-      )}
+      </div>
 
-      {/* Error Message */}
+      {/* Error Message — static, compact */}
       {error && (
-        <div className="px-6 py-3 bg-red-50 border-b border-red-200 text-sm text-red-700">
+        <div className="shrink-0 px-6 py-2 bg-red-50 border-b border-red-100 text-sm text-red-700 flex items-center gap-2">
+          <span className="shrink-0 rounded-full bg-red-200/50 p-0.5 text-xs" aria-hidden>!</span>
           {error}
         </div>
       )}
 
-      {/* Lock Warning */}
+      {/* Lock Warning — static */}
       {fileData?.status === 'LOCKED' && (
-        <div className="px-6 py-3 bg-purple-50 border-b border-purple-200 text-sm text-purple-700">
+        <div className="shrink-0 px-6 py-2 bg-violet-50 border-b border-violet-100 text-sm text-violet-700">
           This document is locked and cannot be modified.
         </div>
       )}
 
-      {/* Main Content: PDF Viewer + Field Panel */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* PDF Viewer (Center) */}
-        <div className="flex-1 overflow-y-auto bg-gray-100 p-6">
+      {/* Main Content: fixed height, no outer scroll — only PDF area scrolls */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* PDF Viewer — only this area scrolls (inner scroll) */}
+        <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden bg-gray-100 p-6">
           {/* Show error if view URL is missing */}
           {hasPartialData ? (
             <div className="flex items-center justify-center h-full">
@@ -482,9 +512,9 @@ export const Prepare: React.FC = () => {
               </div>
             </div>
           ) : !viewUrl ? (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex items-center justify-center min-h-[320px] py-12">
               <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto" />
                 <p className="mt-4 text-sm text-gray-600">Loading PDF...</p>
               </div>
             </div>
@@ -596,8 +626,9 @@ export const Prepare: React.FC = () => {
           )}
         </div>
 
-        {/* Field Panel (Right) - Always render, even if PDF fails */}
-        <FieldPanel
+        {/* Field Panel (Right) — static, always visible, no scroll */}
+        <div className="shrink-0 w-80 min-h-0 flex flex-col bg-white border-l border-gray-200">
+          <FieldPanel
           fields={signatureFields}
           isPlacingField={isPlacingField}
           fieldType={fieldType}
@@ -609,7 +640,13 @@ export const Prepare: React.FC = () => {
           disabled={fileData?.status === 'LOCKED' || hasPartialData || false}
           fieldRoles={fieldRoles}
           onRoleChange={handleRoleChange}
-        />
+          recipients={recipients}
+          recipientEmails={stateRecipients ? Object.fromEntries(stateRecipients.map((r) => [r.role, r.email])) : {}}
+          selectedRecipient={selectedRecipient}
+          onSelectRecipient={setSelectedRecipient}
+          onAddRecipient={handleAddRecipient}
+          />
+        </div>
       </div>
     </div>
   );

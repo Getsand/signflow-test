@@ -35,6 +35,8 @@ class SignatureFieldService:
         height: float,
         assigned_to: UUID,
         owner_id: UUID,
+        field_type: str = "SIGNATURE",
+        role: str | None = None,
     ) -> SignatureField:
         """
         Create a signature field.
@@ -69,6 +71,8 @@ class SignatureFieldService:
             width=width,
             height=height,
             assigned_to=assigned_to,
+            field_type=field_type,
+            role=role,
         )
 
         return field
@@ -121,14 +125,15 @@ class SignatureFieldService:
         - Only file owner can delete
         - Only if status is PENDING
         """
-        # Get field
+        # Get field (may be ORM or row-like; status can be enum or str)
         field = await self.sig_repo.get_by_id(field_id)
         
         if not field:
             raise ValueError("Signature field not found")
 
-        # Check if already signed
-        if field.status == SignatureFieldStatus.SIGNED:
+        # Check if already signed (works for both enum and string status)
+        status_val = getattr(field.status, "value", field.status)
+        if status_val == SignatureFieldStatus.SIGNED.value:
             raise ValueError("Cannot delete signed field")
 
         # Verify ownership
@@ -192,8 +197,9 @@ class SignatureFieldService:
         if field.assigned_to != user_id:
             raise ValueError("Only the assigned user can sign this field")
 
-        # 3. Check field status
-        if field.status == SignatureFieldStatus.SIGNED:
+        # 3. Check field status (works for both enum and string status)
+        status_val = getattr(field.status, "value", field.status)
+        if status_val == SignatureFieldStatus.SIGNED.value:
             raise ValueError("This field has already been signed")
 
         # 4. Get file object
@@ -299,7 +305,8 @@ class SignatureFieldService:
                 )
             )
             
-            if is_earlier and field.status == SignatureFieldStatus.PENDING:
+            status_val = getattr(field.status, "value", field.status)
+            if is_earlier and status_val == SignatureFieldStatus.PENDING.value:
                 raise ValueError(
                     f"Sequential signing required: Field on page {field.page_number} "
                     f"must be signed first"

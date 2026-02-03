@@ -7,6 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from app.core.db import get_db
 from app.core.deps import get_current_user
@@ -95,6 +96,18 @@ async def create_signing_request(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except IntegrityError as e:
+        # Template reuse: if file_id unique constraint still exists, migration not run
+        err_msg = str(e.orig) if hasattr(e, "orig") and e.orig else str(e)
+        if "signing_requests_file_id_key" in err_msg or "duplicate key" in err_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    "This template was already used for another signing request. "
+                    "Run the database migration to allow template reuse: alembic upgrade head"
+                ),
+            )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=err_msg)
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

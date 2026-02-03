@@ -48,10 +48,12 @@ class SigningRequestService:
         """
         Create a signing request from a template file.
         
+        Templates can be used multiple times; each call creates a new signing request
+        for the same file (template).
+        
         Rules:
         - File must exist and be owned by user
         - File must be COMPLETED (not UPLOADING or FAILED)
-        - No existing signing request for this file
         - Recipients must be provided
         - All roles in recipients must have unique emails
         """
@@ -63,10 +65,7 @@ class SigningRequestService:
         if file_obj.status.value != "COMPLETED":
             raise ValueError("File must be in COMPLETED status")
         
-        # Check if signing request already exists
-        existing = await self.signing_request_repo.get_by_file_id(file_id=file_id)
-        if existing:
-            raise ValueError("Signing request already exists for this file")
+        # Template can be used multiple times — no "one signing request per file" check
         
         # Validate recipients
         if not recipients or len(recipients) == 0:
@@ -106,8 +105,7 @@ class SigningRequestService:
         # Load template fields for this file
         template_fields = await self.signature_repo.list_by_file(file_id=file_id)
 
-        # Build mapping from assigned_to -> role, matching frontend logic
-        # Frontend assigns roles based on first occurrence order of assigned_to
+        # Build mapping from assigned_to -> role (fallback when field.role is not set)
         role_by_assignee = {}
         role_index = 1
         for field in template_fields:
@@ -123,7 +121,8 @@ class SigningRequestService:
         fields_to_create: List[SigningRequestField] = []
 
         for field in template_fields:
-            role = role_by_assignee.get(field.assigned_to)
+            # Prefer explicit role on template field (Me, Signer 1, Signer 2); else derive from assigned_to
+            role = getattr(field, "role", None) or role_by_assignee.get(field.assigned_to)
             recipient = recipients_by_role.get(role) if role else None
 
             if not recipient:
@@ -142,7 +141,7 @@ class SigningRequestService:
                     template_field_id=field.id,
                     recipient_id=recipient.id,
                     role=role,
-                    field_type="SIGNATURE",  # Default type for now
+                    field_type=getattr(field, 'field_type', 'SIGNATURE'),  # Copy field_type from template field
                     page=field.page_number,
                     x=field.x,
                     y=field.y,

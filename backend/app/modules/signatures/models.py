@@ -70,6 +70,20 @@ class SignatureField(Base):
         index=True,
     )
 
+    # Field type (SIGNATURE, INITIAL, DATE, TEXT, EMAIL, FULLNAME, COMPANY, etc.)
+    field_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="SIGNATURE",
+    )
+
+    # Recipient role for template (e.g. "Me", "Signer 1", "Signer 2") - used when creating signing request
+    role: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        index=True,
+    )
+
     # Status
     status: Mapped[SignatureFieldStatus] = mapped_column(
         Enum(SignatureFieldStatus, name='signaturefieldstatus'),

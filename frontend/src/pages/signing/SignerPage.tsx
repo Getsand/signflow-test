@@ -41,6 +41,7 @@ interface SignatureModalProps {
   onClose: () => void;
   onConfirm: (signatureType: 'DRAW' | 'TYPED', signatureData: string) => void;
   fieldLabel?: string;
+  fieldType?: string; // Field type to determine input method
 }
 
 const SignatureModal: React.FC<SignatureModalProps> = ({
@@ -48,13 +49,32 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   onClose,
   onConfirm,
   fieldLabel = 'Sign here',
+  fieldType = 'SIGNATURE',
 }) => {
+  // Determine if this field type requires signature input or text input
+  const fieldTypeUpper = fieldType?.toUpperCase() || 'SIGNATURE';
+  const requiresSignature = ['SIGNATURE', 'INITIAL'].includes(fieldTypeUpper);
+  const isDateField = fieldTypeUpper === 'DATE' || fieldTypeUpper === 'DATEPICKER';
+  const isEmailField = fieldTypeUpper === 'EMAIL';
+  const isTextField = ['TEXT', 'FULLNAME', 'COMPANY'].includes(fieldTypeUpper);
   const [mode, setMode] = useState<'DRAW' | 'TYPED'>('DRAW');
   const [signature, setSignature] = useState<string>('');
   const [typedName, setTypedName] = useState<string>('');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+
+  // Set default date when modal opens for date fields
+  useEffect(() => {
+    if (isOpen && isDateField && !typedName) {
+      // Set today's date in YYYY-MM-DD format (required for date input)
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      setTypedName(`${year}-${month}-${day}`);
+    }
+  }, [isOpen, isDateField]);
 
   useEffect(() => {
     if (isOpen && mode === 'DRAW' && canvasRef.current) {
@@ -126,6 +146,17 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   };
 
   const handleConfirm = () => {
+    // For non-signature fields (date, email, text, etc.), always use typed value
+    if (!requiresSignature) {
+      if (typedName.trim()) {
+        onConfirm('TYPED', typedName.trim());
+      } else {
+        console.error('Field value is required');
+      }
+      return;
+    }
+
+    // For signature/initial fields, handle draw or typed
     if (mode === 'DRAW') {
       // Always get fresh data from canvas when confirming
       if (canvasRef.current) {
@@ -153,8 +184,11 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
       } else {
         console.error('Canvas ref is null');
       }
-    } else if (mode === 'TYPED' && typedName.trim()) {
-      onConfirm('TYPED', typedName.trim());
+    } else {
+      // TYPED mode for signature/initial
+      if (typedName.trim()) {
+        onConfirm('TYPED', typedName.trim());
+      }
     }
   };
 
@@ -163,67 +197,113 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h2 className="text-xl font-semibold mb-4">Sign Document</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          {isDateField ? 'Enter Date' : 
+           isEmailField ? 'Enter Email' : 
+           isTextField ? 'Enter Text' : 
+           'Sign Document'}
+        </h2>
         
-        {/* Mode Toggle */}
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => {
-              setMode('DRAW');
-              clearSignature();
-            }}
-            className={`flex-1 px-4 py-2 rounded ${
-              mode === 'DRAW'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            Draw Signature
-          </button>
-          <button
-            onClick={() => {
-              setMode('TYPED');
-              setSignature('');
-            }}
-            className={`flex-1 px-4 py-2 rounded ${
-              mode === 'TYPED'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-700'
-            }`}
-          >
-            Type Signature
-          </button>
-        </div>
-
-        {/* Signature Input */}
-        {mode === 'DRAW' ? (
-          <div>
-            <canvas
-              ref={canvasRef}
-              width={400}
-              height={200}
-              className="border border-gray-300 rounded cursor-crosshair w-full"
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-            />
+        {/* Mode Toggle - Only show for SIGNATURE and INITIAL fields */}
+        {requiresSignature && (
+          <div className="flex gap-2 mb-4">
             <button
-              onClick={clearSignature}
-              className="mt-2 text-sm text-gray-600 hover:text-gray-800"
+              onClick={() => {
+                setMode('DRAW');
+                clearSignature();
+              }}
+              className={`flex-1 px-4 py-2 rounded ${
+                mode === 'DRAW'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-700'
+              }`}
             >
-              Clear
+              Draw {fieldType?.toUpperCase() === 'INITIAL' ? 'Initial' : 'Signature'}
+            </button>
+            <button
+              onClick={() => {
+                setMode('TYPED');
+                setSignature('');
+              }}
+              className={`flex-1 px-4 py-2 rounded ${
+                mode === 'TYPED'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-200 text-gray-700'
+              }`}
+            >
+              Type {fieldType?.toUpperCase() === 'INITIAL' ? 'Initial' : 'Signature'}
             </button>
           </div>
+        )}
+
+        {/* Field Input - Different based on field type */}
+        {requiresSignature ? (
+          // Signature/Initial fields - use draw/type
+          mode === 'DRAW' ? (
+            <div>
+              <canvas
+                ref={canvasRef}
+                width={400}
+                height={200}
+                className="border border-gray-300 rounded cursor-crosshair w-full"
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+              />
+              <button
+                onClick={clearSignature}
+                className="mt-2 text-sm text-gray-600 hover:text-gray-800"
+              >
+                Clear
+              </button>
+            </div>
+          ) : (
+            <div>
+              <input
+                type="text"
+                value={typedName}
+                onChange={(e) => setTypedName(e.target.value)}
+                placeholder={fieldType?.toUpperCase() === 'INITIAL' ? "Type your initial" : "Type your name"}
+                className="w-full px-4 py-2 border border-gray-300 rounded text-lg"
+                style={{ fontFamily: 'cursive' }}
+              />
+            </div>
+          )
+        ) : isDateField ? (
+          // Date field - use date picker
+          <div>
+            <input
+              type="date"
+              value={typedName}
+              onChange={(e) => setTypedName(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded text-lg"
+            />
+          </div>
+        ) : isEmailField ? (
+          // Email field - use email input
+          <div>
+            <input
+              type="email"
+              value={typedName}
+              onChange={(e) => setTypedName(e.target.value)}
+              placeholder="Enter your email"
+              className="w-full px-4 py-2 border border-gray-300 rounded text-lg"
+            />
+          </div>
         ) : (
+          // Text/Fullname/Company fields - use text input
           <div>
             <input
               type="text"
               value={typedName}
               onChange={(e) => setTypedName(e.target.value)}
-              placeholder="Type your name"
+              placeholder={
+                fieldType?.toUpperCase() === 'FULLNAME' ? "Enter your full name" :
+                fieldType?.toUpperCase() === 'COMPANY' ? "Enter company name" :
+                "Enter text"
+              }
               className="w-full px-4 py-2 border border-gray-300 rounded text-lg"
-              style={{ fontFamily: 'cursive' }}
             />
           </div>
         )}
@@ -237,12 +317,19 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             variant="primary"
             onClick={handleConfirm}
             disabled={
-              (mode === 'DRAW' && !signature) ||
-              (mode === 'TYPED' && !typedName.trim())
+              requiresSignature
+                ? ((mode === 'DRAW' && !signature) || (mode === 'TYPED' && !typedName.trim()))
+                : !typedName.trim()
             }
             className="flex-1"
           >
-            Confirm Signature
+            {requiresSignature 
+              ? `Confirm ${fieldType?.toUpperCase() === 'INITIAL' ? 'Initial' : 'Signature'}` 
+              : isDateField 
+                ? 'Confirm Date' 
+                : isEmailField 
+                  ? 'Confirm Email' 
+                  : 'Confirm'}
           </Button>
         </div>
       </div>
@@ -340,6 +427,38 @@ export const SignerPage: React.FC = () => {
     return context.fields.filter((f) => f.page === pageNumber);
   };
 
+  // Get field type label for display
+  const getFieldTypeLabel = (fieldType?: string): string => {
+    if (!fieldType) return 'Signed';
+    const type = fieldType.toUpperCase();
+    const labels: Record<string, string> = {
+      'SIGNATURE': 'Signed',
+      'INITIAL': 'Initialed',
+      'DATE': 'Date Added',
+      'TEXT': 'Text Entered',
+      'EMAIL': 'Email Entered',
+      'FULLNAME': 'Name Entered',
+      'COMPANY': 'Company Entered',
+    };
+    return labels[type] || 'Completed';
+  };
+
+  // Get field type action text
+  const getFieldTypeAction = (fieldType?: string): string => {
+    if (!fieldType) return 'sign';
+    const type = fieldType.toUpperCase();
+    const actions: Record<string, string> = {
+      'SIGNATURE': 'sign',
+      'INITIAL': 'initial',
+      'DATE': 'add date',
+      'TEXT': 'enter text',
+      'EMAIL': 'enter email',
+      'FULLNAME': 'enter name',
+      'COMPANY': 'enter company',
+    };
+    return actions[type] || 'complete';
+  };
+
   // Check if field can be signed (sequential signing check)
   const canSignField = (field: SigningRequestField): boolean => {
     if (field.status === 'SIGNED') return false;
@@ -380,12 +499,23 @@ export const SignerPage: React.FC = () => {
   ) => {
     if (!token || !selectedFieldId || !context) return;
 
+    const selectedField = context.fields.find((f) => f.id === selectedFieldId);
+    const requiresSignature = selectedField && ['SIGNATURE', 'INITIAL'].includes(selectedField.field_type?.toUpperCase() || 'SIGNATURE');
+
     try {
       setIsSigning(true);
+      setError(null);
+
+      // For non-signature fields, always use TYPED with the text value
+      const finalSignatureType = requiresSignature ? signatureType : 'TYPED';
+      const finalData = requiresSignature 
+        ? (signatureType === 'DRAW' ? signatureData : signatureData)
+        : signatureData; // For text/date/email fields, signatureData is the text value
+
       const response = await signField(selectedFieldId, token, {
-        signature_type: signatureType,
-        signature_image_base64: signatureType === 'DRAW' ? signatureData : undefined,
-        typed_name: signatureType === 'TYPED' ? signatureData : undefined,
+        signature_type: finalSignatureType,
+        signature_image_base64: finalSignatureType === 'DRAW' ? finalData : undefined,
+        typed_name: finalSignatureType === 'TYPED' ? finalData : undefined,
       });
 
       // Update context with signed field
@@ -647,11 +777,11 @@ export const SignerPage: React.FC = () => {
                           >
                             <div className="absolute inset-0 flex items-center justify-center text-xs">
                               {isSigned ? (
-                                <span className="text-green-700 font-medium">✓ Signed</span>
+                                <span className="text-green-700 font-medium">✓ {getFieldTypeLabel(field.field_type)}</span>
                               ) : canSign ? (
-                                <span className="text-indigo-700">Click to sign</span>
+                                <span className="text-indigo-700">Click to {getFieldTypeAction(field.field_type)}</span>
                               ) : (
-                                <span className="text-gray-500">Sign previous fields first</span>
+                                <span className="text-gray-500">Complete previous fields first</span>
                               )}
                             </div>
                           </div>
@@ -687,7 +817,8 @@ export const SignerPage: React.FC = () => {
         isOpen={!!selectedFieldId}
         onClose={() => setSelectedFieldId(null)}
         onConfirm={handleSignatureConfirm}
-        fieldLabel={selectedField?.role || 'Sign here'}
+        fieldLabel={selectedField ? `${getFieldTypeLabel(selectedField.field_type)} - ${selectedField.role}` : 'Sign here'}
+        fieldType={selectedField?.field_type}
       />
     </div>
   );

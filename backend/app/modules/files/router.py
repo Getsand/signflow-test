@@ -139,7 +139,7 @@ async def get_file(
                     width=field.width,
                     height=field.height,
                     assigned_to=field.assigned_to,
-                    status=field.status.value,
+                    status=getattr(field.status, "value", field.status),  # enum or str from raw query
                     signature_type=None,  # SignatureField model doesn't have signature_type field
                     signed_at=field.signed_at,
                     created_at=field.created_at,

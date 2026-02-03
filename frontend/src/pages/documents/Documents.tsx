@@ -199,13 +199,21 @@ export const Documents: React.FC = () => {
 
   // Format date for display
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
+    // If the date string doesn't have timezone info, treat it as UTC
+    let dateStr = dateString;
+    if (!dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+      // Append 'Z' to indicate UTC if no timezone info is present
+      dateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    }
+    const date = new Date(dateStr);
+    // Use toLocaleString to include both date and time
+    return date.toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
+      hour12: true, // Use AM/PM format
     });
   };
 

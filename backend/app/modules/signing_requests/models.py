@@ -56,18 +56,17 @@ class SigningRequest(Base):
     SigningRequest - Document workflow wrapper
     
     Wraps a file (template) with workflow state and metadata.
-    One-to-one relationship with FileObject.
+    Multiple signing requests can reference the same template file (template reuse).
     """
     __tablename__ = "signing_requests"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     
-    # Link to file (template)
+    # Link to file (template) — same template can be used for multiple signing requests
     file_id = Column(
         UUID(as_uuid=True),
         ForeignKey("file_objects.id", ondelete="CASCADE"),
         nullable=False,
-        unique=True,  # One signing request per file
         index=True,
     )
     

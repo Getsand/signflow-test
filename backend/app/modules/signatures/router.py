@@ -1,11 +1,14 @@
 """
 API endpoints for signature fields
 """
+import logging
 from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.core.db import get_db
 from app.core.security import get_current_user
@@ -57,14 +60,19 @@ async def create_signature_field(
             height=payload.height,
             assigned_to=payload.assigned_to,
             owner_id=current_user.id,
+            field_type=payload.field_type,
+            role=payload.role,
         )
         await db.commit()
         return field
         
     except ValueError as e:
+        logger.warning("Create signature field validation error: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Create signature field failed: %s", e)
+        detail = str(e)
+        raise HTTPException(status_code=500, detail=detail)
 
 
 @router.get("/fields", response_model=List[SignatureFieldOut])
@@ -75,11 +83,11 @@ async def list_signature_fields(
 ):
     """
     List all signature fields for a file.
-    
+
     Rules:
     - File owner can see all fields
     - Assigned signer can see fields assigned to them
-    
+
     Returns list of signature fields ordered by page and creation time.
     """
     try:
@@ -88,7 +96,6 @@ async def list_signature_fields(
             user_id=current_user.id,
         )
         return fields
-        
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

@@ -15,7 +15,9 @@ class SignatureFieldCreate(BaseModel):
     y: float = Field(..., description="Y coordinate (PDF space)")
     width: float = Field(..., gt=0, description="Width in points")
     height: float = Field(..., gt=0, description="Height in points")
-    assigned_to: UUID = Field(..., description="UUID of user who should sign")
+    assigned_to: UUID = Field(..., description="UUID of user who should sign (template owner for template fields)")
+    field_type: str = Field(default="SIGNATURE", description="Field type: SIGNATURE, INITIAL, DATE, TEXT, EMAIL, FULLNAME, COMPANY, etc.")
+    role: Optional[str] = Field(default=None, description="Recipient role for template: Me, Signer 1, Signer 2, etc.")
 
     @field_validator("width", "height")
     @classmethod
@@ -74,6 +76,8 @@ class SignatureFieldOut(BaseModel):
     width: float
     height: float
     assigned_to: UUID
+    field_type: str
+    role: Optional[str] = None
     status: str
     signed_at: Optional[datetime]
     created_at: datetime

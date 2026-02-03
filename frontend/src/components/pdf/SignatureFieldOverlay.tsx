@@ -153,6 +153,18 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
   // Determine field state styling
   const isLocked = field.status === 'SIGNED' || !editable;
   const isPending = field.status === 'PENDING' && editable;
+
+  // Label and icon by field_type (show actual type: Signature, Text, Date, etc.)
+  const rawType = (field.field_type ?? field.signature_type ?? 'SIGNATURE').toUpperCase();
+  const fieldLabel =
+    rawType === 'SIGNATURE' ? 'Signature' :
+    rawType === 'INITIAL' ? 'Initial' :
+    rawType === 'DATE' || rawType === 'DATEPICKER' ? 'Date' :
+    rawType === 'TEXT' ? 'Text' :
+    rawType === 'FULLNAME' ? 'Full name' :
+    rawType === 'EMAIL' ? 'Email' :
+    rawType === 'COMPANY' ? 'Company' :
+    rawType;
   
   // Zoho-like styling: light blue background, blue dashed border
   const baseStyles = isLocked
@@ -181,7 +193,7 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
         {role}
       </div>
 
-      {/* Field content: pen icon + "Sign here" text */}
+      {/* Field content: show field type label (Signature, Text, Date, etc.) or Signed */}
       <div className="absolute inset-0 flex items-center justify-center gap-1.5 pointer-events-none">
         {field.status === 'SIGNED' ? (
           <div className="flex items-center gap-1.5 text-xs font-medium text-green-700">
@@ -192,10 +204,10 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
           </div>
         ) : (
           <div className="flex items-center gap-1.5 text-xs font-medium text-gray-600">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
-            <span>Sign here</span>
+            <span>{fieldLabel}</span>
           </div>
         )}
       </div>

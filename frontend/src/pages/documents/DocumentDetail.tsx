@@ -40,6 +40,30 @@ export const DocumentDetail: React.FC = () => {
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
+  // Helper function to parse UTC datetime correctly
+  const parseUtcDate = (dateString: string): Date => {
+    // If the date string doesn't have timezone info, treat it as UTC
+    let dateStr = dateString;
+    if (!dateStr.includes('Z') && !dateStr.includes('+') && !dateStr.includes('-', 10)) {
+      // Append 'Z' to indicate UTC if no timezone info is present
+      dateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    }
+    return new Date(dateStr);
+  };
+
+  // Helper function to format date with time
+  const formatDateTime = (dateString: string) => {
+    const date = parseUtcDate(dateString);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+  };
+
   // Fetch details on mount - try signing request first, then file
   useEffect(() => {
     const fetchDetails = async () => {
@@ -314,22 +338,14 @@ export const DocumentDetail: React.FC = () => {
                   <div>
                     <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Created</label>
                     <p className="mt-2 text-sm text-gray-900">
-                      {new Date(signingRequestData.created_at).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })}
+                      {formatDateTime(signingRequestData.created_at)}
                     </p>
                   </div>
                   {signingRequestData.sent_at ? (
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Sent</label>
                       <p className="mt-2 text-sm text-gray-900">
-                        {new Date(signingRequestData.sent_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {formatDateTime(signingRequestData.sent_at)}
                       </p>
                     </div>
                   ) : (
@@ -342,11 +358,7 @@ export const DocumentDetail: React.FC = () => {
                     <div>
                       <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completed</label>
                       <p className="mt-2 text-sm text-gray-900">
-                        {new Date(signingRequestData.completed_at).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })}
+                        {formatDateTime(signingRequestData.completed_at)}
                       </p>
                     </div>
                   ) : (
@@ -481,12 +493,7 @@ export const DocumentDetail: React.FC = () => {
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">
                               {field.signed_at
-                                ? new Date(field.signed_at).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
+                                ? formatDateTime(field.signed_at)
                                 : <span className="text-gray-400">—</span>}
                             </td>
                           </tr>
@@ -650,7 +657,7 @@ export const DocumentDetail: React.FC = () => {
                     <p className="font-medium">Document Locked</p>
                     <p className="mt-1">
                       This document has been finalized and cannot be modified. 
-                      {fileData.locked_at && ` Locked on ${new Date(fileData.locked_at).toLocaleString()}`}
+                      {fileData.locked_at && ` Locked on ${formatDateTime(fileData.locked_at)}`}
                     </p>
                   </div>
                 </div>
@@ -717,12 +724,7 @@ export const DocumentDetail: React.FC = () => {
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-600">
                               {field.signed_at
-                                ? new Date(field.signed_at).toLocaleDateString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                  })
+                                ? formatDateTime(field.signed_at)
                                 : <span className="text-gray-400">—</span>}
                             </td>
                           </tr>
@@ -774,10 +776,7 @@ export const DocumentDetail: React.FC = () => {
                           <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Created</label>
                           <p className="mt-1.5 text-sm text-gray-900">
                             {fileData?.created_at
-                              ? new Date(fileData.created_at).toLocaleString('en-US', {
-                                  dateStyle: 'medium',
-                                  timeStyle: 'short',
-                                })
+                              ? formatDateTime(fileData.created_at)
                               : '—'}
                           </p>
                         </div>
