@@ -1,12 +1,12 @@
-# SignFlow — Complete Workflow & API Reference
+# SignFlo — Complete Workflow & API Reference
 
-**For junior developers:** This document explains the full project workflow from signup to downloading a signed PDF, plus all APIs and how they fit together. No code changes—reference only.
+This document explains the full project workflow from signup to downloading a signed PDF, plus all APIs and how they fit together. No code changes—reference only.
 
 ---
 
 ## 1. Project Overview
 
-SignFlow is a Zoho Sign–style e-signature platform:
+SignFlo is a Zoho Sign–style e-signature platform:
 
 - **Document owner** uploads a PDF (template), adds recipients, places signature/date/text fields, then creates and sends a signing request.
 - **Signers** receive an email with a link; they open it (no login), sign their fields, and complete.

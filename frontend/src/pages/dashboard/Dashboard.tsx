@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, StatusBadge } from '../../components/ui';
 import { listSigningRequests, getSigningRequestStats, SigningRequestListItem, SigningRequestStats } from '../../lib/signingRequestApi';
+import { logger } from '../../utils/logger';
 
 export const Dashboard: React.FC = () => {
   const [requests, setRequests] = useState<SigningRequestListItem[]>([]);
@@ -33,7 +34,7 @@ export const Dashboard: React.FC = () => {
         setStats(statsData);
         setError(null);
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err);
+        logger.error('Failed to fetch dashboard data:', err);
         setError('Failed to load dashboard data');
       } finally {
         setIsLoading(false);
@@ -201,10 +202,10 @@ export const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* How SignFlow Works */}
+        {/* How SignFlo Works */}
         <Card>
           <CardHeader>
-            <CardTitle>How SignFlow Works</CardTitle>
+            <CardTitle>How SignFlo Works</CardTitle>
             <CardDescription>A simple guide to getting started</CardDescription>
           </CardHeader>
           <CardContent>

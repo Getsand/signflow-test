@@ -20,7 +20,9 @@ from app.modules.signing_requests.models import (
     RecipientStatus,
     SigningRequestStatus,
     SigningRequest,
+    SigningOrder,
 )
+from app.core.email import EmailService
 from app.modules.files.models import FileObject
 from app.modules.signing_requests.schemas import (
     SignerContextResponse,
@@ -325,11 +327,13 @@ async def complete_signing(
     """
     signing_request_repo = SigningRequestRepository(db)
     
-    # Validate token and get recipient with signing request loaded
+    # Validate token and get recipient with signing request and file loaded (for "send to next" email title)
     stmt = (
         select(SigningRequestRecipient)
         .where(SigningRequestRecipient.signing_token == token)
-        .options(joinedload(SigningRequestRecipient.signing_request))
+        .options(
+            joinedload(SigningRequestRecipient.signing_request).joinedload(SigningRequest.file)
+        )
     )
     result = await db.execute(stmt)
     recipient = result.unique().scalar_one_or_none()
@@ -390,6 +394,32 @@ async def complete_signing(
         # At least one signed - mark as IN_PROGRESS
         if signing_request.status == SigningRequestStatus.SENT:
             signing_request.status = SigningRequestStatus.IN_PROGRESS
+    
+    # SEQUENTIAL: send invitation to the next recipient now that this signer has completed
+    if signing_request.signing_order == SigningOrder.SEQUENTIAL and signed_count < total_count:
+        current_index = next(
+            (i for i, r in enumerate(all_recipients) if r.id == recipient.id),
+            None,
+        )
+        if current_index is not None and current_index + 1 < len(all_recipients):
+            next_recipient = all_recipients[current_index + 1]
+            if next_recipient.sent_at is None:
+                email_service = EmailService()
+                signing_token = email_service.generate_signing_token()
+                signing_url = email_service.build_signing_url(signing_token)
+                document_title = signing_request.title or (signing_request.file.filename if signing_request.file else "Document")
+                email_sent = email_service.send_signing_invitation(
+                    to_email=next_recipient.email,
+                    recipient_name=next_recipient.role,
+                    document_title=document_title,
+                    signing_url=signing_url,
+                )
+                if email_sent:
+                    await signing_request_repo.update_recipient_token_and_sent_at(
+                        recipient_id=next_recipient.id,
+                        signing_token=signing_token,
+                        sent_at=datetime.utcnow(),
+                    )
     
     await db.commit()
     

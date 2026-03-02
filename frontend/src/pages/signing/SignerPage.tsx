@@ -20,6 +20,7 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { getSignerContext, signField, completeSigning, SigningRequestField, SignerContext } from '../../lib/signingApi';
 import { pdfToScreen, pdfDimensionsToScreen } from '../../utils/pdfCoordinates';
 import { Button } from '../../components/ui';
+import { logger } from '../../utils/logger';
 
 // Set up PDF.js worker
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -151,7 +152,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
       if (typedName.trim()) {
         onConfirm('TYPED', typedName.trim());
       } else {
-        console.error('Field value is required');
+        logger.error('Field value is required');
       }
       return;
     }
@@ -175,14 +176,14 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
             if (base64Data) {
               onConfirm('DRAW', base64Data);
             } else {
-              console.error('Failed to extract base64 data from signature');
+              logger.error('Failed to extract base64 data from signature');
             }
           } else {
-            console.error('Canvas is blank, cannot confirm empty signature');
+            logger.error('Canvas is blank, cannot confirm empty signature');
           }
         }
       } else {
-        console.error('Canvas ref is null');
+        logger.error('Canvas ref is null');
       }
     } else {
       // TYPED mode for signature/initial
@@ -195,9 +196,9 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h2 className="text-xl font-semibold mb-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4 border border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">
           {isDateField ? 'Enter Date' : 
            isEmailField ? 'Enter Email' : 
            isTextField ? 'Enter Text' : 
@@ -212,10 +213,10 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                 setMode('DRAW');
                 clearSignature();
               }}
-              className={`flex-1 px-4 py-2 rounded ${
+              className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 mode === 'DRAW'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-700'
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
               }`}
             >
               Draw {fieldType?.toUpperCase() === 'INITIAL' ? 'Initial' : 'Signature'}
@@ -225,10 +226,10 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                 setMode('TYPED');
                 setSignature('');
               }}
-              className={`flex-1 px-4 py-2 rounded ${
+              className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 mode === 'TYPED'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-200 text-gray-700'
+                  ? 'bg-slate-700 text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'
               }`}
             >
               Type {fieldType?.toUpperCase() === 'INITIAL' ? 'Initial' : 'Signature'}
@@ -253,7 +254,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
               />
               <button
                 onClick={clearSignature}
-                className="mt-2 text-sm text-gray-600 hover:text-gray-800"
+                className="mt-2 text-sm text-slate-600 hover:text-slate-800 font-medium"
               >
                 Clear
               </button>
@@ -310,18 +311,22 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
 
         {/* Actions */}
         <div className="flex gap-3 mt-6">
-          <Button variant="secondary" onClick={onClose} className="flex-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 rounded-lg font-medium border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 transition-colors"
+          >
             Cancel
-          </Button>
-          <Button
-            variant="primary"
+          </button>
+          <button
+            type="button"
             onClick={handleConfirm}
             disabled={
               requiresSignature
                 ? ((mode === 'DRAW' && !signature) || (mode === 'TYPED' && !typedName.trim()))
                 : !typedName.trim()
             }
-            className="flex-1"
+            className="flex-1 px-4 py-2.5 rounded-lg font-medium bg-slate-700 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 transition-colors shadow-sm"
           >
             {requiresSignature 
               ? `Confirm ${fieldType?.toUpperCase() === 'INITIAL' ? 'Initial' : 'Signature'}` 
@@ -330,7 +335,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
                 : isEmailField 
                   ? 'Confirm Email' 
                   : 'Confirm'}
-          </Button>
+          </button>
         </div>
       </div>
     </div>
@@ -342,7 +347,6 @@ export const SignerPage: React.FC = () => {
 
   // Debug: Log component mount
   useEffect(() => {
-    console.log('SignerPage mounted with token:', token);
   }, [token]);
 
   const [context, setContext] = useState<SignerContext | null>(null);
@@ -369,13 +373,11 @@ export const SignerPage: React.FC = () => {
       try {
         setIsLoading(true);
         setError(null);
-        console.log('Loading signing context for token:', token);
         const data = await getSignerContext(token);
-        console.log('Signing context loaded:', data);
         setContext(data);
       } catch (err: any) {
-        console.error('Failed to load signing context:', err);
-        console.error('Error details:', err.response?.data);
+        logger.error('Failed to load signing context:', err);
+        logger.error('Error details:', err.response?.data);
         if (err.response?.status === 404) {
           setError('This signing link is invalid or has already been used.');
         } else if (err.response?.status === 400) {
@@ -534,7 +536,7 @@ export const SignerPage: React.FC = () => {
         await handleComplete();
       }
     } catch (err: any) {
-      console.error('Failed to sign field:', err);
+      logger.error('Failed to sign field:', err);
       setError(err.response?.data?.detail || 'Failed to sign field');
     } finally {
       setIsSigning(false);
@@ -550,7 +552,7 @@ export const SignerPage: React.FC = () => {
       await completeSigning(token);
       setShowSuccess(true);
     } catch (err: any) {
-      console.error('Failed to complete signing:', err);
+      logger.error('Failed to complete signing:', err);
       setError(err.response?.data?.detail || 'Failed to complete signing');
     } finally {
       setIsCompleting(false);
@@ -593,9 +595,15 @@ export const SignerPage: React.FC = () => {
           <h1 className="text-2xl font-semibold text-gray-900 mb-2">
             Signing Complete
           </h1>
-          <p className="text-gray-600 mb-6">
+          <p className="text-gray-600 mb-4">
             You have successfully signed this document.
           </p>
+          {context?.signing_request?.id && (
+            <div className="mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <p className="text-xs font-medium text-gray-500 mb-1">Document ID</p>
+              <p className="text-sm font-mono text-gray-900 break-all">{context.signing_request.id}</p>
+            </div>
+          )}
           <p className="text-sm text-gray-500">
             You can close this page now.
           </p>

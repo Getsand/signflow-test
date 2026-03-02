@@ -109,7 +109,7 @@ class EmailService:
             })
 
             logger.info(
-                f"Signing invitation email sent successfully to {to_email} "
+                f"Signing invitation email sent from {self.from_email!r} to {to_email} "
                 f"for document '{document_title}' (Resend ID: {response.get('id', 'unknown')})"
             )
             return True
@@ -125,6 +125,62 @@ class EmailService:
                 f"Unexpected error sending email to {to_email}: {e}",
                 exc_info=True
             )
+            return False
+
+    def send_user_invite(
+        self,
+        *,
+        to_email: str,
+        recipient_name: str,
+        login_url: str,
+        temp_password: str,
+    ) -> bool:
+        """
+        Send user invite email (e.g. after inviting via API).
+        Includes login URL and temporary password so they can sign in and set a new password.
+        """
+        if not settings.RESEND_API_KEY:
+            logger.warning(
+                f"Email service not configured (RESEND_API_KEY missing). "
+                f"Would send user invite to {to_email}"
+            )
+            logger.info(f"Login URL: {login_url}, temp password: (set)")
+            return False
+        try:
+            subject = "You've been invited to SignFlo"
+            html_content = f"""
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+                    <h1 style="margin: 0;">SignFlo</h1>
+                </div>
+                <div style="background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
+                    <h2 style="color: #111827;">You've been invited</h2>
+                    <p>Hello {recipient_name or 'there'},</p>
+                    <p>You have been invited to join SignFlo. Use the link below to sign in with your temporary password. We recommend changing your password after first login.</p>
+                    <p><strong>Login URL:</strong> <a href="{login_url}">{login_url}</a></p>
+                    <p><strong>Temporary password:</strong> <code style="background:#eee;padding:4px 8px;">{temp_password}</code></p>
+                    <p style="color: #6b7280; font-size: 14px;">If you did not expect this invite, you can ignore this email.</p>
+                </div>
+            </body>
+            </html>
+            """
+            text_content = f"""SignFlo - You've been invited\n\nHello {recipient_name or 'there'},\n\nYou have been invited to join SignFlo.\nLogin URL: {login_url}\nTemporary password: {temp_password}\n\nWe recommend changing your password after first login."""
+            response = resend.Emails.send({
+                "from": self.from_email,
+                "to": [to_email],
+                "subject": subject,
+                "html": html_content,
+                "text": text_content,
+            })
+            logger.info(f"User invite email sent to {to_email} (Resend ID: {response.get('id', 'unknown')})")
+            return True
+        except ResendError as e:
+            logger.error(f"Failed to send user invite to {to_email}: {e}", exc_info=True)
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error sending user invite to {to_email}: {e}", exc_info=True)
             return False
 
     def _build_email_html(
@@ -144,7 +200,7 @@ class EmailService:
         </head>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
             <div style="background-color: #4F46E5; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-                <h1 style="margin: 0; font-size: 24px;">SignFlow</h1>
+                <h1 style="margin: 0; font-size: 24px;">SignFlo</h1>
             </div>
             <div style="background-color: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px;">
                 <h2 style="color: #111827; margin-top: 0;">Action Required: Please Sign Document</h2>
@@ -180,7 +236,7 @@ class EmailService:
     ) -> str:
         """Build plain text email content"""
         return f"""
-SignFlow - Action Required: Please Sign Document
+SignFlo - Action Required: Please Sign Document
 
 Hello {recipient_name},
 
@@ -195,5 +251,5 @@ Please click the link below to review and sign the document:
 This link is unique to you and will expire after signing.
 
 ---
-SignFlow - Secure Document Signing
+SignFlo - Secure Document Signing
         """.strip()

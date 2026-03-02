@@ -183,3 +183,32 @@ class FileRepository:
         result = await self.session.execute(stmt)
         await self.session.flush()
         return result.rowcount > 0
+
+    async def update_filename(
+        self,
+        *,
+        file_id: UUID,
+        owner_id: UUID,
+        new_filename: str,
+    ) -> Optional[FileObject]:
+        """
+        Update filename for a file.
+        Only the owner can rename their files.
+        
+        Returns updated FileObject if successful, None if not found.
+        """
+        stmt = (
+            update(FileObject)
+            .where(
+                FileObject.id == file_id,
+                FileObject.owner_id == owner_id,
+            )
+            .values(filename=new_filename)
+        )
+        result = await self.session.execute(stmt)
+        await self.session.flush()
+        
+        if result.rowcount > 0:
+            # Return updated object
+            return await self.get_by_id(file_id=file_id, owner_id=owner_id)
+        return None

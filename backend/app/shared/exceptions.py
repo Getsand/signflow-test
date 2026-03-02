@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 class SignFlowException(Exception):
     """
-    Base exception for all SignFlow application errors
+    Base exception for all SignFlo application errors
     
     Attributes:
         message: Human-readable error message

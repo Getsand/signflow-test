@@ -1,12 +1,13 @@
 /**
  * Sidebar Component
- * 
- * Zoho-style left sidebar navigation for authenticated users.
+ *
+ * Zoho-style left sidebar: logo, nav links, user block at bottom.
  * Fixed width, collapsible on mobile.
  */
 
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 
 interface SidebarItem {
   label: string;
@@ -51,7 +52,14 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = () => {
   const location = useLocation();
+  const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  // Close profile dropdown when navigating
+  React.useEffect(() => {
+    setProfileOpen(false);
+  }, [location.pathname]);
 
   const isActive = (path: string) => {
     if (path === '/dashboard') {
@@ -76,11 +84,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - fixed on desktop, drawer on mobile */}
       <aside
         className={`
-          fixed lg:static inset-y-0 left-0 z-50
-          w-64 bg-white border-r border-gray-200
+          fixed inset-y-0 left-0 z-50
+          w-64 h-screen bg-white border-r border-gray-200
           transform transition-transform duration-300 ease-in-out
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           flex flex-col
@@ -88,11 +96,18 @@ export const Sidebar: React.FC<SidebarProps> = () => {
       >
         {/* Logo */}
         <div className="h-16 flex items-center px-6 border-b border-gray-200">
-          <Link to="/dashboard" className="flex items-center gap-2">
+          <Link 
+            to="/dashboard" 
+            className="flex items-center gap-2"
+            onClick={() => {
+              setMobileOpen(false);
+              setProfileOpen(false);
+            }}
+          >
             <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-lg">S</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">SignFlow</span>
+            <span className="text-xl font-bold text-gray-900">SignFlo</span>
           </Link>
         </div>
 
@@ -104,7 +119,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                onClick={() => setMobileOpen(false)}
+                onClick={() => {
+                  setMobileOpen(false);
+                  setProfileOpen(false);
+                }}
                 className={`
                   flex items-center gap-3 px-4 py-2.5 rounded-lg
                   transition-colors duration-150
@@ -121,6 +139,52 @@ export const Sidebar: React.FC<SidebarProps> = () => {
             );
           })}
         </nav>
+
+        {/* User block at bottom - Zoho Sign style */}
+        {user && (
+          <div className="border-t border-gray-200 p-4 mt-auto shrink-0 relative">
+            <button
+              type="button"
+              onClick={() => setProfileOpen(!profileOpen)}
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors text-left"
+            >
+              <div className="w-9 h-9 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-semibold text-sm shrink-0">
+                {user.name?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-900 truncate">{user.name || 'User'}</p>
+                <p className="text-xs text-gray-500 truncate">{user.email}</p>
+              </div>
+              <svg
+                className={`w-4 h-4 text-gray-500 shrink-0 transition-transform ${profileOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {profileOpen && (
+              <div className="absolute left-4 right-4 bottom-full mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                  <div className="px-4 py-3 border-b border-gray-200">
+                    <p className="text-sm font-semibold text-gray-900">{user.name || 'User'}</p>
+                    <p className="text-xs text-gray-600 mt-0.5 truncate">{user.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      setProfileOpen(false);
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    Sign out
+                  </button>
+                </div>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Mobile menu button */}

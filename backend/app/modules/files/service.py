@@ -163,3 +163,40 @@ class FileService:
             raise ValueError("File not found or access denied")
         
         logger.info(f"Deleted file record from database: {file_id}")
+
+    async def rename_file(
+        self,
+        *,
+        file_id: UUID,
+        owner_id: UUID,
+        new_filename: str,
+    ) -> dict:
+        """
+        Rename a file.
+        
+        Only the owner can rename their files.
+        Raises ValueError if file not found or access denied.
+        """
+        if not new_filename or not new_filename.strip():
+            raise ValueError("Filename cannot be empty")
+        
+        # Validate filename length
+        if len(new_filename.strip()) > 255:
+            raise ValueError("Filename is too long (max 255 characters)")
+        
+        updated_file = await self.repo.update_filename(
+            file_id=file_id,
+            owner_id=owner_id,
+            new_filename=new_filename.strip(),
+        )
+        
+        if not updated_file:
+            raise ValueError("File not found or access denied")
+        
+        return {
+            "id": str(updated_file.id),
+            "filename": updated_file.filename,
+            "mime_type": updated_file.mime_type,
+            "size": updated_file.size,
+            "status": updated_file.status.value,
+        }

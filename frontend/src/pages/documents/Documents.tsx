@@ -16,6 +16,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge, Button } from '../../components/ui';
 import { listSigningRequests, getSigningRequestDetail, sendSigningRequest, SigningRequestListItem, SigningRequestDetail, downloadSignedPdf, deleteSigningRequest } from '../../lib/signingRequestApi';
+import { logger } from '../../utils/logger';
 
 interface SigningRequestWithDetails extends SigningRequestListItem {
   recipients?: SigningRequestDetail['recipients'];
@@ -32,6 +33,19 @@ export const Documents: React.FC = () => {
   const [emailError, setEmailError] = useState<{ requestId: string; failedRecipients: string[] } | null>(null);
   const [deletingRequestId, setDeletingRequestId] = useState<string | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Filter requests by search (title + filename), case-insensitive, updates as user types
+  const filteredRequests = React.useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return requests;
+    return requests.filter(
+      (r) =>
+        (r.title && r.title.toLowerCase().includes(q)) ||
+        (r.filename && r.filename.toLowerCase().includes(q))
+    );
+  }, [requests, searchQuery]);
 
   // Fetch signing requests and their details on mount
   useEffect(() => {
@@ -50,7 +64,7 @@ export const Documents: React.FC = () => {
                 recipients: detail.recipients,
               };
             } catch (err) {
-              console.error(`Failed to fetch details for request ${request.id}:`, err);
+              logger.error(`Failed to fetch details for request ${request.id}:`, err);
               return request; // Return without recipients if fetch fails
             }
           })
@@ -59,7 +73,7 @@ export const Documents: React.FC = () => {
         setRequests(requestsWithDetails);
         setError(null);
       } catch (err) {
-        console.error('Failed to fetch signing requests:', err);
+        logger.error('Failed to fetch signing requests:', err);
         setError('Failed to load documents');
       } finally {
         setIsLoading(false);
@@ -71,12 +85,38 @@ export const Documents: React.FC = () => {
 
   // Handle row click
   const handleRowClick = (requestId: string, e?: React.MouseEvent) => {
-    // Don't navigate if clicking on action buttons
-    if (e && (e.target as HTMLElement).closest('button')) {
-      return;
+    // Don't navigate if clicking on action buttons or dropdown menu
+    if (e) {
+      const target = e.target as HTMLElement;
+      if (target.closest('button') || target.closest('[data-action-menu]')) {
+        return;
+      }
     }
     navigate(`/documents/${requestId}`);
   };
+
+  // Handle menu toggle
+  const handleMenuToggle = (e: React.MouseEvent, requestId: string) => {
+    e.stopPropagation();
+    setOpenMenuId(openMenuId === requestId ? null : requestId);
+  };
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('[data-action-menu]')) {
+        setOpenMenuId(null);
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openMenuId]);
 
   // Handle send action
   const handleSend = async (e: React.MouseEvent, requestId: string) => {
@@ -113,7 +153,7 @@ export const Documents: React.FC = () => {
       );
       setRequests(requestsWithDetails);
     } catch (err: any) {
-      console.error('Failed to send signing request:', err);
+      logger.error('Failed to send signing request:', err);
       setError(err.response?.data?.detail || 'Failed to send signing request');
     } finally {
       setSendingRequestId(null);
@@ -146,7 +186,7 @@ export const Documents: React.FC = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
     } catch (err: any) {
-      console.error('Failed to download PDF:', err);
+      logger.error('Failed to download PDF:', err);
       setError(err.response?.data?.detail || err.message || 'Failed to download document');
     }
   };
@@ -185,7 +225,7 @@ export const Documents: React.FC = () => {
       setRequests(requestsWithDetails);
       setDeleteConfirmId(null);
     } catch (err: any) {
-      console.error('Failed to delete signing request:', err);
+      logger.error('Failed to delete signing request:', err);
       setError(err.response?.data?.detail || 'Failed to delete document');
     } finally {
       setDeletingRequestId(null);
@@ -313,11 +353,45 @@ export const Documents: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Documents</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          {isLoading ? 'Loading...' : `${requests.length} document${requests.length !== 1 ? 's' : ''}`}
-        </p>
+      <div className="flex items-center gap-4 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-semibold text-gray-900">All Documents</h1>
+          <p className="mt-1 text-sm text-gray-600">
+            {isLoading ? 'Loading...' : `${filteredRequests.length} document${filteredRequests.length !== 1 ? 's' : ''}`}
+            {searchQuery.trim() && requests.length !== filteredRequests.length && (
+              <span className="text-gray-500"> (filtered from {requests.length})</span>
+            )}
+          </p>
+        </div>
+        
+        {/* Search Box - Between title and empty space (no button on Documents page) */}
+        {!isLoading && requests.length > 0 && (
+          <div className="relative flex-1 max-w-md min-w-[200px]">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by document name or filename..."
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Error Message */}
@@ -361,7 +435,7 @@ export const Documents: React.FC = () => {
         <div className="flex items-center justify-center py-12">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
         </div>
-      ) : requests.length === 0 ? (
+      ) : filteredRequests.length === 0 ? (
         <div className="text-center py-16">
           <svg
             className="mx-auto h-12 w-12 text-gray-400"
@@ -376,8 +450,23 @@ export const Documents: React.FC = () => {
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
-          <h3 className="mt-4 text-sm font-medium text-gray-900">No documents</h3>
-          <p className="mt-2 text-sm text-gray-500">Your documents will appear here once you create signing requests.</p>
+          <h3 className="mt-4 text-sm font-medium text-gray-900">
+            {searchQuery.trim() ? 'No matching documents' : 'No documents'}
+          </h3>
+          <p className="mt-2 text-sm text-gray-500">
+            {searchQuery.trim()
+              ? 'Try a different search term.'
+              : 'Your documents will appear here once you create signing requests.'}
+          </p>
+          {searchQuery.trim() && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="mt-4 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+            >
+              Clear search
+            </button>
+          )}
         </div>
       ) : (
         <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
@@ -400,7 +489,7 @@ export const Documents: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {requests.map((request) => (
+                {filteredRequests.map((request) => (
                   <tr
                     key={request.id}
                     onClick={(e) => handleRowClick(request.id, e)}
@@ -417,9 +506,6 @@ export const Documents: React.FC = () => {
                           <p className="text-sm font-medium text-gray-900 truncate">
                             {request.title}
                           </p>
-                          <p className="text-xs text-gray-500 truncate mt-0.5">
-                            {request.filename}
-                          </p>
                           {/* Recipient Summary - Zoho-style timeline */}
                           {getRecipientSummary(request.recipients)}
                         </div>
@@ -432,64 +518,127 @@ export const Documents: React.FC = () => {
                       {formatDate(request.created_at)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        {getDocumentStatus(request) === 'DRAFT' && (
-                          <>
-                            <Button
-                              variant="primary"
-                              size="sm"
-                              onClick={(e) => handleSend(e, request.id)}
-                              disabled={sendingRequestId === request.id}
-                            >
-                              {sendingRequestId === request.id ? 'Sending...' : 'Send'}
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={(e) => handleDelete(e, request.id)}
-                              disabled={deletingRequestId === request.id}
-                            >
-                              Delete
-                            </Button>
-                          </>
-                        )}
-                        {(getDocumentStatus(request) === 'SENT' || getDocumentStatus(request) === 'IN_PROGRESS') && (
-                          <>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={(e) => handleView(e, request.id)}
-                            >
-                              View
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={(e) => handleDelete(e, request.id)}
-                              disabled={deletingRequestId === request.id}
-                            >
-                              Delete
-                            </Button>
-                          </>
-                        )}
-                        {getDocumentStatus(request) === 'COMPLETED' && (
-                          <>
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={(e) => handleDownload(e, request.id)}
-                            >
-                              Download
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={(e) => handleDelete(e, request.id)}
-                              disabled={deletingRequestId === request.id}
-                            >
-                              Delete
-                            </Button>
-                          </>
+                      <div className="relative" data-action-menu>
+                        {/* Three-dot menu button */}
+                        <button
+                          type="button"
+                          onClick={(e) => handleMenuToggle(e, request.id)}
+                          className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                          aria-label="Actions"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                          </svg>
+                        </button>
+
+                        {/* Dropdown menu */}
+                        {openMenuId === request.id && (
+                          <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                            {getDocumentStatus(request) === 'DRAFT' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId(null);
+                                    handleSend(e, request.id);
+                                  }}
+                                  disabled={sendingRequestId === request.id}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                                  </svg>
+                                  {sendingRequestId === request.id ? 'Sending...' : 'Send'}
+                                </button>
+                                <div className="border-t border-gray-100 my-1"></div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId(null);
+                                    handleDelete(e, request.id);
+                                  }}
+                                  disabled={deletingRequestId === request.id}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                            {(getDocumentStatus(request) === 'SENT' || getDocumentStatus(request) === 'IN_PROGRESS') && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId(null);
+                                    handleView(e, request.id);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  View
+                                </button>
+                                <div className="border-t border-gray-100 my-1"></div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId(null);
+                                    handleDelete(e, request.id);
+                                  }}
+                                  disabled={deletingRequestId === request.id}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                            {getDocumentStatus(request) === 'COMPLETED' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId(null);
+                                    handleDownload(e, request.id);
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                  </svg>
+                                  Download
+                                </button>
+                                <div className="border-t border-gray-100 my-1"></div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setOpenMenuId(null);
+                                    handleDelete(e, request.id);
+                                  }}
+                                  disabled={deletingRequestId === request.id}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
                         )}
                       </div>
                     </td>

@@ -19,7 +19,7 @@ async def get_current_user(
 ):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="Missing or invalid JWT. Use the access_token from Login in the Authorization header: Bearer <access_token>. Do not put the token in the request body.",
     )
 
     try:

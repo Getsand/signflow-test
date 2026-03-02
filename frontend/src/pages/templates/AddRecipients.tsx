@@ -22,11 +22,18 @@ const DEFAULT_RECIPIENTS: RecipientEntry[] = [
 
 function ensureUniqueRoles(entries: RecipientEntry[]): RecipientEntry[] {
   const seen = new Set<string>();
-  return entries.map((entry, index) => {
+  return entries.map((entry) => {
     let role = entry.role;
     if (seen.has(role)) {
-      const n = entries.filter((r) => r.role.startsWith('Signer ')).length;
-      role = `Signer ${n + 1}`;
+      // Find the maximum signer number among all entries (including this one)
+      const signerNumbers = entries
+        .filter((r) => r.role.startsWith('Signer '))
+        .map((r) => {
+          const match = r.role.match(/^Signer (\d+)$/);
+          return match ? parseInt(match[1], 10) : 0;
+        });
+      const maxNumber = signerNumbers.length > 0 ? Math.max(...signerNumbers) : 0;
+      role = `Signer ${maxNumber + 1}`;
     }
     seen.add(role);
     return { ...entry, role };
@@ -64,7 +71,18 @@ export const AddRecipients: React.FC = () => {
   }, [file_id]);
 
   const handleAddRecipient = () => {
-    const nextNum = recipients.filter((r) => r.role.startsWith('Signer ')).length + 1;
+    // Find the maximum signer number among existing recipients
+    const signerNumbers = recipients
+      .filter((r) => r.role.startsWith('Signer '))
+      .map((r) => {
+        const match = r.role.match(/^Signer (\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+    
+    // Get the next number: max number + 1, or 1 if no signers exist
+    const maxNumber = signerNumbers.length > 0 ? Math.max(...signerNumbers) : 0;
+    const nextNum = maxNumber + 1;
+    
     setRecipients((prev) => ensureUniqueRoles([...prev, { role: `Signer ${nextNum}`, email: '' }]));
   };
 

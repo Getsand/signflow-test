@@ -1,5 +1,15 @@
 from logging.config import fileConfig
 import os
+from pathlib import Path
+
+# Load .env so DATABASE_URL is set when running: alembic upgrade head
+try:
+    from dotenv import load_dotenv
+    _backend_dir = Path(__file__).resolve().parent.parent
+    load_dotenv(_backend_dir / ".env")
+    load_dotenv(_backend_dir.parent / ".env")
+except ImportError:
+    pass
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -10,6 +20,10 @@ from app.core.base import Base
 import app.models  # noqa: F401
 import app.modules.auth.models  # noqa: F401
 import app.modules.files.models  # noqa: F401
+try:
+    import app.api.models  # noqa: F401
+except ModuleNotFoundError:
+    pass  # API tables created by migration add_api_keys_and_usage_logs.py
 
 
 # Alembic Config object

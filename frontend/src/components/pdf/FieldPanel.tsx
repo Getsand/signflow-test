@@ -7,6 +7,7 @@
 
 import React from 'react';
 import { SignatureField } from '../../lib/signatureFieldApi';
+import { getRecipientColor } from '../../utils/recipientColors';
 
 interface FieldPanelProps {
   fields: SignatureField[];
@@ -28,6 +29,7 @@ interface FieldPanelProps {
   selectedRecipient?: string;
   onSelectRecipient?: (recipient: string) => void;
   onAddRecipient?: () => void;
+  onRemoveRecipient?: (recipient: string) => void;
 }
 
 interface FieldType {
@@ -57,6 +59,7 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
   selectedRecipient = 'Signer 1',
   onSelectRecipient,
   onAddRecipient,
+  onRemoveRecipient,
 }) => {
   const isMeSelected = selectedRecipient === 'Me';
 
@@ -214,23 +217,61 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
             const isSelected = selectedRecipient === recipient;
             const initial = getInitial(recipient);
             const label = getRecipientLabel(recipient);
+            const color = getRecipientColor(recipient);
+            const canRemove = recipient !== 'Me' && recipients.length > 1 && onRemoveRecipient;
+            // Count fields assigned to this recipient: check fieldRoles first, then field.role property
+            const fieldsForRecipient = fields.filter((f) => {
+              const fieldRole = fieldRoles[f.id] || (f as any).role || selectedRecipient;
+              return fieldRole === recipient;
+            });
+            const hasFields = fieldsForRecipient.length > 0;
             return (
-              <button
+              <div
                 key={recipient}
-                type="button"
-                onClick={() => onSelectRecipient?.(recipient)}
-                disabled={disabled}
                 className={`
-                  w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-all border-l-2
-                  ${isSelected ? 'bg-indigo-50 border-indigo-600 text-indigo-800' : 'border-transparent hover:bg-gray-50 text-gray-700'}
-                  ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}
+                  w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-all border-l-4 group
+                  ${isSelected ? 'hover:bg-gray-50' : 'border-transparent hover:bg-gray-50 text-gray-700'}
+                  ${disabled ? 'opacity-60' : ''}
                 `}
+                style={{
+                  borderLeftColor: color.border,
+                  ...(isSelected ? { backgroundColor: color.bgLight, color: color.text } : {}),
+                }}
               >
-                <span className={`shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold ${isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-gray-600'}`}>
-                  {initial}
-                </span>
-                <span className="flex-1 min-w-0 text-xs font-medium truncate" title={label}>{label}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => onSelectRecipient?.(recipient)}
+                  disabled={disabled}
+                  className="flex-1 flex items-center gap-2 min-w-0"
+                >
+                  <span
+                    className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                    style={{ backgroundColor: isSelected ? color.border : color.bg }}
+                  >
+                    {initial}
+                  </span>
+                  <span className="flex-1 min-w-0 text-xs font-medium truncate" title={label} style={isSelected ? { color: color.text } : undefined}>{label}</span>
+                </button>
+                {canRemove && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (hasFields && !window.confirm(`Remove "${recipient}" and delete all ${fieldsForRecipient.length} field${fieldsForRecipient.length !== 1 ? 's' : ''} assigned to them?`)) {
+                        return;
+                      }
+                      onRemoveRecipient(recipient);
+                    }}
+                    disabled={disabled}
+                    className="shrink-0 p-1 text-gray-400 hover:text-red-600 rounded transition-colors opacity-0 group-hover:opacity-100"
+                    title={`Remove ${recipient}${hasFields ? ` and ${fieldsForRecipient.length} field${fieldsForRecipient.length !== 1 ? 's' : ''}` : ''}`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
             );
           })}
           {onAddRecipient && (
@@ -267,7 +308,7 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
         )}
       </div>
 
-      {/* Placed fields — compact list, internal scroll only if many */}
+      {/* Placed fields — grouped by recipient/signer, internal scroll only if many */}
       <div className="flex-1 min-h-0 overflow-y-auto">
         {fields.length === 0 ? (
           <div className="p-4 text-center">
@@ -275,45 +316,252 @@ export const FieldPanel: React.FC<FieldPanelProps> = ({
             <p className="text-[10px] text-gray-400 mt-0.5">Select a field type above</p>
           </div>
         ) : (
-          <div className="px-3 py-2 space-y-2">
-            <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Placed</h3>
-            <div className="space-y-1">
-              {sortedPages.flatMap((pageNumber) =>
-                fieldsByPage[pageNumber].map((field) => {
-                  const fieldRole = fieldRoles[field.id] || recipients[0] || 'Signer 1';
-                  const rawType = field.field_type?.toLowerCase() || field.signature_type || 'signature';
-                  const fieldTypeId = rawType === 'date' ? 'datepicker' : rawType;
-                  const fieldTypeIcon = allFieldTypes.find((t: FieldType) => t.id === fieldTypeId)?.icon || allFieldTypes[0].icon;
-                  return (
-                    <div
-                      key={field.id}
-                      onClick={() => onFieldSelect?.(field.id)}
-                      className={`flex items-center gap-2 px-2 py-1.5 rounded-md border transition-colors cursor-pointer text-left ${selectedFieldId === field.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'}`}
+          <div className="px-3 py-2 space-y-3">
+            <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">Placed Fields</h3>
+            {/* Group fields by recipient */}
+            {recipients.map((recipient) => {
+              // Get all fields assigned to this recipient
+              const recipientFields = fields.filter((field) => {
+                const fieldRole = fieldRoles[field.id] || (field as any).role || selectedRecipient;
+                return fieldRole === recipient;
+              });
+
+              if (recipientFields.length === 0) return null;
+
+              const initial = getInitial(recipient);
+              const label = getRecipientLabel(recipient);
+              const color = getRecipientColor(recipient);
+
+              return (
+                <div key={recipient} className="space-y-1.5">
+                  {/* Recipient header - same color as fields on PDF */}
+                  <div className="flex items-center gap-2 px-2 py-1">
+                    <span
+                      className="shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold text-white"
+                      style={{ backgroundColor: color.border }}
                     >
-                      <span className="shrink-0 text-gray-500 [&_svg]:w-3.5 [&_svg]:h-3.5">{fieldTypeIcon}</span>
-                      <span className="text-[10px] text-gray-500 shrink-0">P{field.page_number}</span>
-                      <select
-                        value={recipients.includes(fieldRole) ? fieldRole : recipients[0]}
-                        onChange={(e) => { e.stopPropagation(); onRoleChange?.(field.id, e.target.value); }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex-1 min-w-0 text-[10px] border-0 bg-transparent py-0 pr-5 focus:ring-0"
-                        disabled={disabled || field.status === 'SIGNED'}
-                      >
-                        {recipients.map((r) => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                      {field.status === 'PENDING' && (
-                        <button onClick={(e) => { e.stopPropagation(); onDeleteField(field.id); }} className="shrink-0 p-0.5 text-red-500 hover:text-red-600 rounded" title="Delete">
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
+                      {initial}
+                    </span>
+                    <span className="flex-1 text-[10px] font-semibold text-gray-700">{label}</span>
+                    <span className="text-[9px] text-gray-400">{recipientFields.length} field{recipientFields.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  
+                  {/* Fields for this recipient */}
+                  <div className="space-y-1 pl-7">
+                    {recipientFields.map((field) => {
+                      const fieldRole = fieldRoles[field.id] || (field as any).role || recipient;
+                      const rawType = field.field_type?.toLowerCase() || field.signature_type || 'signature';
+                      const fieldTypeId = rawType === 'date' ? 'datepicker' : rawType;
+                      const fieldTypeIcon = allFieldTypes.find((t: FieldType) => t.id === fieldTypeId)?.icon || allFieldTypes[0].icon;
+                      const fieldTypeLabel = allFieldTypes.find((t: FieldType) => t.id === fieldTypeId)?.label || 'Signature';
+                      
+                      return (
+                        <div
+                          key={field.id}
+                          onClick={() => onFieldSelect?.(field.id)}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-md border transition-colors cursor-pointer text-left group ${
+                            selectedFieldId === field.id 
+                              ? 'border-indigo-500 bg-indigo-50' 
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="shrink-0 text-gray-500 [&_svg]:w-3.5 [&_svg]:h-3.5">{fieldTypeIcon}</span>
+                          <span className="text-[10px] text-gray-500 shrink-0">P{field.page_number}</span>
+                          <select
+                            value={recipients.includes(fieldRole) ? fieldRole : recipients[0]}
+                            onChange={(e) => { 
+                              e.stopPropagation(); 
+                              onRoleChange?.(field.id, e.target.value); 
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 min-w-0 text-[10px] border-0 bg-transparent py-0 pr-5 focus:ring-0 text-gray-700"
+                            disabled={disabled || field.status === 'SIGNED'}
+                          >
+                            {recipients.map((r) => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                          {field.status === 'PENDING' && (
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                onDeleteField(field.id); 
+                              }} 
+                              className="shrink-0 p-0.5 text-red-500 hover:text-red-600 rounded transition-colors" 
+                              title="Delete field"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+            
+            {/* Show fields without assigned recipient (fallback) */}
+            {(() => {
+              const unassignedFields = fields.filter((field) => {
+                const fieldRole = fieldRoles[field.id] || (field as any).role;
+                return !fieldRole || !recipients.includes(fieldRole);
+              });
+
+              if (unassignedFields.length === 0) return null;
+
+              return (
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 px-2 py-1">
+                    <span className="text-[10px] font-semibold text-gray-500">Unassigned</span>
+                    <span className="text-[9px] text-gray-400">{unassignedFields.length} field{unassignedFields.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  <div className="space-y-1 pl-7">
+                    {unassignedFields.map((field) => {
+                      const fieldRole = fieldRoles[field.id] || (field as any).role || recipients[0] || 'Signer 1';
+                      const rawType = field.field_type?.toLowerCase() || field.signature_type || 'signature';
+                      const fieldTypeId = rawType === 'date' ? 'datepicker' : rawType;
+                      const fieldTypeIcon = allFieldTypes.find((t: FieldType) => t.id === fieldTypeId)?.icon || allFieldTypes[0].icon;
+                      
+                      return (
+                        <div
+                          key={field.id}
+                          onClick={() => onFieldSelect?.(field.id)}
+                          className={`flex items-center gap-2 px-2 py-1.5 rounded-md border transition-colors cursor-pointer text-left group ${
+                            selectedFieldId === field.id 
+                              ? 'border-indigo-500 bg-indigo-50' 
+                              : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          <span className="shrink-0 text-gray-500 [&_svg]:w-3.5 [&_svg]:h-3.5">{fieldTypeIcon}</span>
+                          <span className="text-[10px] text-gray-500 shrink-0">P{field.page_number}</span>
+                          <select
+                            value={recipients.includes(fieldRole) ? fieldRole : recipients[0]}
+                            onChange={(e) => { 
+                              e.stopPropagation(); 
+                              onRoleChange?.(field.id, e.target.value); 
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 min-w-0 text-[10px] border-0 bg-transparent py-0 pr-5 focus:ring-0 text-gray-700"
+                            disabled={disabled || field.status === 'SIGNED'}
+                          >
+                            {recipients.map((r) => <option key={r} value={r}>{r}</option>)}
+                          </select>
+                          {field.status === 'PENDING' && (
+                            <button 
+                              onClick={(e) => { 
+                                e.stopPropagation(); 
+                                onDeleteField(field.id); 
+                              }} 
+                              className="shrink-0 p-0.5 text-red-500 hover:text-red-600 rounded transition-colors" 
+                              title="Delete field"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
+
+      {/* Field Properties/Editing Section — shown when field is selected */}
+      {selectedFieldId && (() => {
+        const selectedField = fields.find((f) => f.id === selectedFieldId);
+        if (!selectedField) return null;
+        
+        const fieldRole = fieldRoles[selectedField.id] || (selectedField as any).role || recipients[0] || 'Signer 1';
+        const rawType = selectedField.field_type?.toLowerCase() || selectedField.signature_type || 'signature';
+        const fieldTypeId = rawType === 'date' ? 'datepicker' : rawType;
+        const fieldTypeLabel = allFieldTypes.find((t: FieldType) => t.id === fieldTypeId)?.label || 'Signature';
+        
+        return (
+          <div className="shrink-0 border-t border-gray-200 bg-gray-50">
+            <div className="px-3 py-2">
+              <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2">Field Properties</h3>
+              <div className="space-y-2">
+                {/* Field Type */}
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-600 mb-1">Type</label>
+                  <div className="text-xs text-gray-900 bg-white px-2 py-1.5 rounded border border-gray-200">
+                    {fieldTypeLabel}
+                  </div>
+                </div>
+                
+                {/* Assigned Recipient */}
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-600 mb-1">Assigned to</label>
+                  <select
+                    value={recipients.includes(fieldRole) ? fieldRole : recipients[0]}
+                    onChange={(e) => onRoleChange?.(selectedField.id, e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
+                    disabled={disabled || selectedField.status === 'SIGNED'}
+                  >
+                    {recipients.map((r) => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                
+                {/* Position and Size */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-600 mb-1">X</label>
+                    <div className="text-xs text-gray-700 bg-white px-2 py-1.5 rounded border border-gray-200">
+                      {Math.round(selectedField.x)}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-600 mb-1">Y</label>
+                    <div className="text-xs text-gray-700 bg-white px-2 py-1.5 rounded border border-gray-200">
+                      {Math.round(selectedField.y)}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-600 mb-1">Width</label>
+                    <div className="text-xs text-gray-700 bg-white px-2 py-1.5 rounded border border-gray-200">
+                      {Math.round(selectedField.width)}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-600 mb-1">Height</label>
+                    <div className="text-xs text-gray-700 bg-white px-2 py-1.5 rounded border border-gray-200">
+                      {Math.round(selectedField.height)}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Page */}
+                <div>
+                  <label className="block text-[10px] font-medium text-gray-600 mb-1">Page</label>
+                  <div className="text-xs text-gray-900 bg-white px-2 py-1.5 rounded border border-gray-200">
+                    Page {selectedField.page_number}
+                  </div>
+                </div>
+                
+                {/* Status */}
+                {selectedField.status && (
+                  <div>
+                    <label className="block text-[10px] font-medium text-gray-600 mb-1">Status</label>
+                    <div className={`text-xs px-2 py-1.5 rounded border ${
+                      selectedField.status === 'SIGNED' 
+                        ? 'bg-green-50 text-green-700 border-green-200' 
+                        : 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                    }`}>
+                      {selectedField.status}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

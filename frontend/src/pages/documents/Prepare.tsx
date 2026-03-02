@@ -17,7 +17,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { Button, StatusBadge } from '../../components/ui';
+import { Button } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { getFileDetail, FileDetail } from '../../lib/fileApi';
 import { getFileViewUrl } from '../../lib/signatureFieldApi';
@@ -25,6 +25,8 @@ import { listSignatureFields, createSignatureField, deleteSignatureField, Signat
 import { SignatureFieldOverlay } from '../../components/pdf/SignatureFieldOverlay';
 import { FieldPanel } from '../../components/pdf/FieldPanel';
 import { screenToPdf } from '../../utils/pdfCoordinates';
+import { getRecipientColor } from '../../utils/recipientColors';
+import { logger } from '../../utils/logger';
 
 // Set up PDF.js worker - use Vite's ?url import for reliable bundling
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -69,6 +71,8 @@ export const Prepare: React.FC = () => {
   const [fieldRoles, setFieldRoles] = useState<Record<string, string>>({}); // fieldId -> Me | Signer 1 | Signer 2 | ...
   const [highlightedFieldId, setHighlightedFieldId] = useState<string | null>(null);
   const [expectedSignerCount, setExpectedSignerCount] = useState<number>(1);
+  const [hasLegacyRoleFields, setHasLegacyRoleFields] = useState<boolean>(false);
+  const [isRepairingFields, setIsRepairingFields] = useState<boolean>(false);
   // Zoho-style: recipients list (Me + Signer 1, 2, ...), select one then add fields
   const [recipients, setRecipients] = useState<string[]>(['Me', 'Signer 1']);
   const [selectedRecipient, setSelectedRecipient] = useState<string>('Signer 1');
@@ -109,11 +113,14 @@ export const Prepare: React.FC = () => {
         // Fetch existing signature fields
         const fields = await listSignatureFields(file_id);
         setSignatureFields(fields);
+        setHasLegacyRoleFields(fields.some((f) => !f.role));
 
         const initialRoles: Record<string, string> = {};
         const uniqueRecipients = new Set<string>(
           stateRecipients?.map((r) => r.role) ?? ['Me', 'Signer 1']
         );
+        // Always ensure 'Me' is included so users can add fields for themselves
+        uniqueRecipients.add('Me');
         fields.forEach((field) => {
           const role = field.role ?? (field.assigned_to === (user?.id ?? '') ? 'Me' : 'Signer 1');
           initialRoles[field.id] = role;
@@ -127,12 +134,17 @@ export const Prepare: React.FC = () => {
           const nB = parseInt(b.replace('Signer ', ''), 10) || 0;
           return nA - nB;
         });
-        setRecipients(sortedRecipients.length > 0 ? sortedRecipients : ['Me', 'Signer 1']);
+        // Ensure 'Me' is always first, and at least 'Me' and 'Signer 1' exist
+        const finalRecipients = sortedRecipients.length > 0 ? sortedRecipients : ['Me', 'Signer 1'];
+        if (!finalRecipients.includes('Me')) {
+          finalRecipients.unshift('Me');
+        }
+        setRecipients(finalRecipients);
         setExpectedSignerCount(Math.max(1, Math.min(10, sortedRecipients.length || 2)));
 
         setError(null);
       } catch (err: any) {
-        console.error('Failed to fetch file data:', err);
+        logger.error('Failed to fetch file data:', err);
         if (err.response?.status === 404) {
           setError('Document not found or you do not have access');
         } else {
@@ -146,19 +158,84 @@ export const Prepare: React.FC = () => {
     fetchData();
   }, [file_id, user?.id]);
 
+  // Repair templates created before role support: re-save legacy fields (role=null) with selected UI role.
+  const handleRepairLegacyFields = useCallback(async () => {
+    if (!file_id || !user) return;
+    const legacy = signatureFields.filter((f) => !f.role);
+    if (legacy.length === 0) {
+      setHasLegacyRoleFields(false);
+      return;
+    }
+
+    try {
+      setIsRepairingFields(true);
+      setError(null);
+
+      const newFields: SignatureField[] = [];
+      const newRoles: Record<string, string> = { ...fieldRoles };
+
+      for (const oldField of legacy) {
+        // Use selectedRecipient for all legacy fields (user should select the correct recipient before repairing)
+        const role = selectedRecipient || 'Signer 1';
+        // Delete legacy field first
+        await deleteSignatureField(oldField.id);
+
+        // Recreate with same geometry + field_type, but with role persisted
+        const recreated = await createSignatureField({
+          file_id,
+          page: oldField.page_number,
+          x: oldField.x,
+          y: oldField.y,
+          width: oldField.width,
+          height: oldField.height,
+          assigned_to: user.id,
+          field_type: (oldField.field_type || 'SIGNATURE') as string,
+          role,
+        });
+
+        newFields.push(recreated);
+        delete newRoles[oldField.id];
+        newRoles[recreated.id] = role;
+      }
+
+      // Refetch fields from server to ensure state is synchronized
+      const refreshedFields = await listSignatureFields(file_id);
+      setSignatureFields(refreshedFields);
+      
+      // Update fieldRoles based on refreshed fields
+      const refreshedRoles: Record<string, string> = {};
+      refreshedFields.forEach((field) => {
+        if (field.role) {
+          refreshedRoles[field.id] = field.role;
+        }
+      });
+      setFieldRoles(refreshedRoles);
+      setHasLegacyRoleFields(refreshedFields.some((f) => !f.role));
+    } catch (err: any) {
+      logger.error('Failed to repair legacy fields:', err?.response?.data ?? err);
+      const detail = err?.response?.data?.detail;
+      const msg =
+        typeof detail === 'string'
+          ? detail
+          : err?.message || 'Failed to repair fields';
+      setError(msg);
+    } finally {
+      setIsRepairingFields(false);
+    }
+  }, [file_id, user, signatureFields, selectedRecipient]);
+
   // Handle PDF document load
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
-    console.log('PDF loaded successfully, pages:', numPages);
     setNumPages(numPages);
     setError(null);
   };
 
   // Handle PDF document load error
   const onDocumentLoadError = (error: Error) => {
-    console.error('PDF load error:', error);
+    logger.error('PDF load error:', error);
     const errorMessage = error.message || 'Unknown error';
-    console.error('PDF worker source:', pdfjs.GlobalWorkerOptions.workerSrc);
-    console.error('PDF file URL:', viewUrl);
+    logger.error('PDF worker source:', pdfjs.GlobalWorkerOptions.workerSrc);
+    logger.error('PDF file URL:', viewUrl);
     setError(`Failed to load PDF: ${errorMessage}. Please check if the file exists and is accessible.`);
   };
 
@@ -258,9 +335,11 @@ export const Prepare: React.FC = () => {
       handleCreateField(pageNumber, pdfCoords.x, pdfCoords.y, pdfDims.width, pdfDims.height);
     }
 
+    // Clear preview but keep placement mode active so user can place more fields
     setNewFieldStart(null);
     setNewFieldCurrent(null);
-    setIsPlacingField(false);
+    // Don't cancel placement mode - keep it active for multiple field placement
+    // setIsPlacingField(false);
   }, [isPlacingField, newFieldStart, newFieldCurrent, pageInfos]);
 
   // Create new signature field: assigned_to = current user (required by DB FK), role = selected recipient (Me, Signer 1, 2)
@@ -292,7 +371,7 @@ export const Prepare: React.FC = () => {
       setFieldRoles((prev) => ({ ...prev, [newField.id]: selectedRecipient }));
       setError(null);
     } catch (err: any) {
-      console.error('Failed to create signature field:', err?.response?.data ?? err);
+      logger.error('Failed to create signature field:', err?.response?.data ?? err);
       const detail = err?.response?.data?.detail;
       const msg = typeof detail === 'string'
         ? detail
@@ -320,7 +399,7 @@ export const Prepare: React.FC = () => {
       await handleCreateField(field.page_number, x, y, width, height);
       setSignatureFields((prev) => prev.filter((f) => f.id !== fieldId));
     } catch (err) {
-      console.error('Failed to update field:', err);
+      logger.error('Failed to update field:', err);
     }
   };
 
@@ -339,7 +418,7 @@ export const Prepare: React.FC = () => {
         setSelectedFieldId(null);
       }
     } catch (err: any) {
-      console.error('Failed to delete signature field:', err?.response?.data ?? err);
+      logger.error('Failed to delete signature field:', err?.response?.data ?? err);
       const detail = err?.response?.data?.detail;
       const msg = typeof detail === 'string'
         ? detail
@@ -367,18 +446,104 @@ export const Prepare: React.FC = () => {
         const nB = parseInt(b.replace('Signer ', ''), 10) || 0;
         return nA - nB;
       });
+      // Ensure 'Me' is always included
+      if (!next.includes('Me')) {
+        next.unshift('Me');
+      }
       setExpectedSignerCount((c) => Math.max(c, Math.min(10, next.length)));
       return next;
     });
   };
 
   const handleAddRecipient = () => {
-    const nextIndex = recipients.filter((r) => r.startsWith('Signer ')).length + 1;
+    // Find the maximum signer number among existing recipients
+    const signerNumbers = recipients
+      .filter((r) => r.startsWith('Signer '))
+      .map((r) => {
+        const match = r.match(/^Signer (\d+)$/);
+        return match ? parseInt(match[1], 10) : 0;
+      });
+    
+    // Get the next index: max number + 1, or 1 if no signers exist
+    const maxNumber = signerNumbers.length > 0 ? Math.max(...signerNumbers) : 0;
+    const nextIndex = maxNumber + 1;
+    
     const newRole = `Signer ${nextIndex}`;
     setRecipients((prev) => [...prev, newRole]);
     setSelectedRecipient(newRole);
     setExpectedSignerCount((c) => Math.min(10, Math.max(c, nextIndex)));
   };
+
+  // Handle recipient removal: delete recipient and all their fields
+  const handleRemoveRecipient = useCallback(async (recipientToRemove: string) => {
+    // Prevent removing "Me" or the last recipient
+    if (recipientToRemove === 'Me' || recipients.length <= 1) {
+      return;
+    }
+
+    if (!file_id) return;
+
+    try {
+      setError(null);
+
+      // Find all fields assigned to this recipient
+      const fieldsToDelete = signatureFields.filter((field) => {
+        // Check fieldRoles first (UI state), then field.role (backend), fallback to selectedRecipient
+        const fieldRole = fieldRoles[field.id] || (field as any).role || selectedRecipient;
+        return fieldRole === recipientToRemove;
+      });
+
+      // Delete all fields for this recipient
+      const deletePromises = fieldsToDelete.map((field) => deleteSignatureField(field.id));
+      await Promise.all(deletePromises);
+
+      // Update state: remove fields from signatureFields
+      setSignatureFields((prev) => prev.filter((field) => {
+        const fieldRole = fieldRoles[field.id] || selectedRecipient;
+        return fieldRole !== recipientToRemove;
+      }));
+
+      // Remove field roles from state
+      setFieldRoles((prev) => {
+        const next = { ...prev };
+        fieldsToDelete.forEach((field) => {
+          delete next[field.id];
+        });
+        return next;
+      });
+
+      // Remove recipient from list (but always keep 'Me')
+      setRecipients((prev) => {
+        const filtered = prev.filter((r) => r !== recipientToRemove);
+        // Ensure 'Me' is always included
+        if (!filtered.includes('Me')) {
+          filtered.unshift('Me');
+        }
+        return filtered;
+      });
+
+      // If the removed recipient was selected, select another one
+      if (selectedRecipient === recipientToRemove) {
+        const remainingRecipients = recipients.filter((r) => r !== recipientToRemove);
+        // Ensure 'Me' is available as fallback
+        setSelectedRecipient(remainingRecipients.includes('Me') ? 'Me' : (remainingRecipients[0] || 'Me'));
+      }
+
+      // Clear selected field if it was deleted
+      if (selectedFieldId && fieldsToDelete.some((f) => f.id === selectedFieldId)) {
+        setSelectedFieldId(null);
+      }
+    } catch (err: any) {
+      logger.error('Failed to remove recipient:', err?.response?.data ?? err);
+      const detail = err?.response?.data?.detail;
+      const msg = typeof detail === 'string'
+        ? detail
+        : Array.isArray(detail)
+          ? detail.map((d: { msg?: string }) => d?.msg ?? '').filter(Boolean).join('. ') || 'Validation error'
+          : err?.message || 'Failed to remove recipient';
+      setError(msg);
+    }
+  }, [file_id, recipients, signatureFields, fieldRoles, selectedRecipient, selectedFieldId]);
 
   // Handle navigation to signing request page (pass recipients from Add Recipients step if available)
   const handleNextToSigners = () => {
@@ -450,7 +615,6 @@ export const Prepare: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">{fileData?.filename || 'Loading...'}</p>
         </div>
         <div className="flex items-center gap-3">
-          {fileData && <StatusBadge status={fileData.status} size="sm" />}
           <Link to={file_id ? `/documents/${file_id}` : '/documents'}>
             <Button variant="outline" size="sm">Back</Button>
           </Link>
@@ -471,7 +635,7 @@ export const Prepare: React.FC = () => {
             onClick={handleNextToSigners}
             disabled={fileData?.status === 'LOCKED'}
           >
-            Next: Add Signers
+            Next
           </Button>
         </div>
       </div>
@@ -481,6 +645,24 @@ export const Prepare: React.FC = () => {
         <div className="shrink-0 px-6 py-2 bg-red-50 border-b border-red-100 text-sm text-red-700 flex items-center gap-2">
           <span className="shrink-0 rounded-full bg-red-200/50 p-0.5 text-xs" aria-hidden>!</span>
           {error}
+        </div>
+      )}
+
+      {/* Legacy role fields banner (templates created before role support) */}
+      {hasLegacyRoleFields && (
+        <div className="shrink-0 px-6 py-2 bg-amber-50 border-b border-amber-100 text-sm text-amber-800 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <span className="font-medium">Action needed:</span>{' '}
+            This template has older fields without recipient roles. Click “Repair fields” once to fix role mapping for signing requests.
+          </div>
+          <button
+            type="button"
+            onClick={handleRepairLegacyFields}
+            disabled={isRepairingFields || fileData?.status === 'LOCKED'}
+            className="shrink-0 px-3 py-1.5 rounded-md text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60"
+          >
+            {isRepairingFields ? 'Repairing…' : 'Repair fields'}
+          </button>
         </div>
       )}
 
@@ -569,8 +751,10 @@ export const Prepare: React.FC = () => {
                         onMouseMove={(e) => handlePageMouseMove(e, pageNumber)}
                         onMouseUp={(e) => handlePageMouseUp(e, pageNumber)}
                         onMouseLeave={() => {
-                          if (isPlacingField) {
-                            handleCancelPlacement();
+                          // Only clear the preview if user was actively dragging, but don't cancel placement mode
+                          if (isPlacingField && newFieldStart) {
+                            setNewFieldStart(null);
+                            setNewFieldCurrent(null);
                           }
                         }}
                         style={{ cursor: isPlacingField ? 'crosshair' : 'default' }}
@@ -596,8 +780,9 @@ export const Prepare: React.FC = () => {
                             onUpdate={handleUpdateField}
                             onDelete={handleDeleteField}
                             editable={fileData?.status !== 'LOCKED'}
-                            role={fieldRoles[field.id] || 'Signer 1'}
+                            role={fieldRoles[field.id] || (field as any).role || 'Signer 1'}
                             isHighlighted={highlightedFieldId === field.id}
+                            accentColor={getRecipientColor(fieldRoles[field.id] || (field as any).role || 'Signer 1')}
                           />
                         ))}
 
@@ -645,6 +830,7 @@ export const Prepare: React.FC = () => {
           selectedRecipient={selectedRecipient}
           onSelectRecipient={setSelectedRecipient}
           onAddRecipient={handleAddRecipient}
+          onRemoveRecipient={handleRemoveRecipient}
           />
         </div>
       </div>

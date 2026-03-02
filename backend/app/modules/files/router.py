@@ -6,6 +6,7 @@ from typing import List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
@@ -314,4 +315,55 @@ async def delete_file(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete file. Please try again."
+        )
+
+
+class RenameRequest(BaseModel):
+    """Request schema for renaming a file"""
+    filename: str = Field(..., min_length=1, max_length=255)
+
+
+@router.patch("/{file_id}/rename", response_model=FileOut)
+async def rename_file(
+    file_id: UUID,
+    payload: RenameRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """
+    Rename a file.
+    
+    Only the file owner can rename their files.
+    """
+    service = FileService(FileRepository(db))
+    
+    try:
+        result = await service.rename_file(
+            file_id=file_id,
+            owner_id=current_user.id,
+            new_filename=payload.filename,
+        )
+        return result
+        
+    except ValueError as e:
+        error_msg = str(e).lower()
+        
+        if "not found" in error_msg or "access denied" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+            
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error renaming file {file_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to rename file. Please try again."
         )

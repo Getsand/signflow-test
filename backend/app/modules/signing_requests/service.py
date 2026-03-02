@@ -105,35 +105,55 @@ class SigningRequestService:
         # Load template fields for this file
         template_fields = await self.signature_repo.list_by_file(file_id=file_id)
 
-        # Build mapping from assigned_to -> role (fallback when field.role is not set)
-        role_by_assignee = {}
-        role_index = 1
-        for field in template_fields:
-            if field.assigned_to not in role_by_assignee:
-                role_by_assignee[field.assigned_to] = f"Signer {role_index}"
-                role_index += 1
-
         # Map role -> recipient for this signing request
         recipients_by_role = {
             r.role: r for r in (signing_request.recipients or [])
         }
 
+        # Check if all fields are missing roles (legacy template)
+        fields_without_role = [f for f in template_fields if not getattr(f, "role", None)]
+        
+        # Safe fallback: if ALL fields lack roles AND there's exactly one recipient, infer "Me" or the recipient's role
+        if fields_without_role and len(fields_without_role) == len(template_fields) and len(recipients_by_role) == 1:
+            # Single recipient - all fields belong to this recipient
+            inferred_role = list(recipients_by_role.keys())[0]
+            logger.info(
+                "Template has %d fields without roles but only one recipient '%s'. "
+                "Inferring role automatically.",
+                len(fields_without_role),
+                inferred_role
+            )
+        elif fields_without_role:
+            # Multiple recipients or mixed fields - require explicit repair
+            raise ValueError(
+                "Template field is missing a role assignment. "
+                "This template has older fields created before role support. "
+                "Please go to the Prepare page for this template and click the 'Repair fields' button "
+                "to assign roles to all fields, then try creating the signing request again."
+            )
+        else:
+            inferred_role = None
+
         fields_to_create: List[SigningRequestField] = []
 
         for field in template_fields:
-            # Prefer explicit role on template field (Me, Signer 1, Signer 2); else derive from assigned_to
-            role = getattr(field, "role", None) or role_by_assignee.get(field.assigned_to)
-            recipient = recipients_by_role.get(role) if role else None
-
-            if not recipient:
-                # Log and skip if we cannot resolve a recipient for this role
-                logger.warning(
-                    "Skipping template field %s: no recipient for role %s (assigned_to=%s)",
-                    field.id,
-                    role,
-                    getattr(field, "assigned_to", None),
+            # Get role: use field.role if available, otherwise use inferred_role (for single-recipient legacy templates)
+            role = getattr(field, "role", None) or inferred_role
+            if not role:
+                raise ValueError(
+                    "Template field is missing a role assignment. "
+                    "This template has older fields created before role support. "
+                    "Please go to the Prepare page for this template and click the 'Repair fields' button "
+                    "to assign roles to all fields, then try creating the signing request again."
                 )
-                continue
+
+            recipient = recipients_by_role.get(role)
+            if not recipient:
+                # STRICT: do not silently default; roles must match recipients
+                raise ValueError(
+                    f"Template field role '{role}' has no matching recipient. "
+                    "Please ensure all template roles are present on the signing request."
+                )
 
             fields_to_create.append(
                 SigningRequestField(
@@ -159,6 +179,37 @@ class SigningRequestService:
                 "Created %d signing_request_fields for signing_request %s",
                 len(fields_to_create),
                 signing_request.id,
+            )
+
+        # Flush session to ensure recipients and fields are available for email sending
+        await self.signing_request_repo.session.flush()
+
+        # Automatically send emails to signers after creating the request
+        try:
+            signing_request, sent, failed_recipients = await self.transition_to_sent(
+                signing_request_id=signing_request.id,
+                owner_id=owner_id,
+            )
+            if sent:
+                logger.info(
+                    "Signing request %s automatically sent to recipients (failed: %s)",
+                    signing_request.id,
+                    failed_recipients,
+                )
+            else:
+                logger.warning(
+                    "Signing request %s created but email sending failed for all recipients: %s",
+                    signing_request.id,
+                    failed_recipients,
+                )
+        except Exception as e:
+            # Log error but don't fail the request creation
+            # The request is still created and can be sent manually later
+            logger.error(
+                "Failed to automatically send signing request %s: %s",
+                signing_request.id,
+                str(e),
+                exc_info=True,
             )
 
         return signing_request
@@ -289,12 +340,16 @@ class SigningRequestService:
         successful_emails = []
         failed_recipients = []
         
-        # Generate tokens and send emails for each recipient
+        # For SEQUENTIAL order, only send to the first recipient; others get the email when previous signer completes
+        recipients_to_email = (
+            recipients[:1] if signing_request.signing_order == SigningOrder.SEQUENTIAL
+            else recipients
+        )
         import logging
         logger = logging.getLogger(__name__)
-        logger.info(f"Sending signing request {signing_request_id} to {len(recipients)} recipient(s)")
+        logger.info(f"Sending signing request {signing_request_id} to {len(recipients_to_email)} recipient(s) (order={signing_request.signing_order.value})")
         
-        for recipient in recipients:
+        for recipient in recipients_to_email:
             # Generate unique signing token
             signing_token = email_service.generate_signing_token()
             
@@ -332,9 +387,9 @@ class SigningRequestService:
         if successful_emails:
             signing_request.status = SigningRequestStatus.SENT
             signing_request.sent_at = sent_at
-            logger.info(f"Signing request {signing_request_id} marked as SENT ({len(successful_emails)}/{len(recipients)} emails sent)")
+            logger.info(f"Signing request {signing_request_id} marked as SENT ({len(successful_emails)}/{len(recipients_to_email)} emails sent)")
         else:
-            logger.warning(f"Signing request {signing_request_id} remains DRAFT (all {len(recipients)} emails failed)")
+            logger.warning(f"Signing request {signing_request_id} remains DRAFT (all {len(recipients_to_email)} emails failed)")
         
         return signing_request, len(successful_emails) > 0, failed_recipients
 

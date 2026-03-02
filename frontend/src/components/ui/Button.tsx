@@ -39,7 +39,7 @@ export const Button: React.FC<ButtonProps> = ({
     secondary: 'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 shadow-md',
     outline: 'border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100',
     ghost: 'text-gray-700 hover:bg-gray-100 active:bg-gray-200',
-    danger: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 shadow-md',
+    danger: 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 hover:border-red-300 hover:text-red-600 active:bg-gray-100',
   };
 
   // Size styles

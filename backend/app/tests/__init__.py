@@ -1,3 +1,3 @@
-"""Test suite for SignFlow backend"""
+"""Test suite for SignFlo backend"""
 
 

@@ -67,7 +67,7 @@ The `EmailService` class provides:
 ## Email Template
 
 The email includes:
-- Professional HTML design with SignFlow branding
+- Professional HTML design with SignFlo branding
 - Document title
 - Recipient role/name
 - Signing button with link

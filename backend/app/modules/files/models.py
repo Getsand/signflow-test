@@ -1,5 +1,5 @@
 """
-File storage models for SignFlow
+File storage models for SignFlo
 """
 import uuid
 from datetime import datetime

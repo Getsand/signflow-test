@@ -6,6 +6,7 @@
 
 import React, { useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
+import { logger } from '../../utils/logger';
 
 // Set up PDF.js worker - use Vite's ?url import for reliable bundling
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -42,7 +43,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
   };
 
   const onDocumentLoadError = (error: Error) => {
-    console.error('PDF load error:', error);
+    logger.error('PDF load error:', error);
     setError('Failed to load PDF document');
     setLoading(false);
   };

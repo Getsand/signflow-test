@@ -33,7 +33,7 @@ async def verify_database():
 async def main():
     """Main verification function"""
     print("=" * 50)
-    print("SignFlow Milestone A - Setup Verification")
+    print("SignFlo Milestone A - Setup Verification")
     print("=" * 50)
     
     # Check settings

@@ -1,105 +1,75 @@
 """
-FastAPI middleware for request tracking and logging
-"""
-import time
-import uuid
-from typing import Callable
+FastAPI middleware for request tracking and logging.
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+Uses pure pass-through for the response so the connection is never hung.
+Request ID and security headers are added only when the response has started.
+"""
+import uuid
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.logging import get_logger, set_request_id
 
 logger = get_logger(__name__)
 
 
-class RequestIDMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware to add request_id to all requests and responses.
-    Sets the request_id in context for structured logging.
-    """
-    
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
-        """
-        Process request and add request_id tracking
-        
-        Args:
-            request: Incoming HTTP request
-            call_next: Next middleware/route handler
-        
-        Returns:
-            HTTP response with request_id header
-        """
-        # Generate or extract request_id
-        request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-        
-        # Set request_id in context for logging
-        set_request_id(request_id)
-        
-        # Add request_id to request state for access in routes
-        request.state.request_id = request_id
-        
-        # Log incoming request
-        start_time = time.time()
-        logger.info(
-            f"Request started method={request.method} path={request.url.path}"
-        )
-        
-        # Process request
+def _get_header(scope: Scope, name: str) -> str | None:
+    try:
+        for k, v in scope.get("headers", []):
+            if k.decode("utf-8", errors="replace").lower() == name.lower():
+                return v.decode("utf-8", errors="replace")
+    except Exception:
+        pass
+    return None
+
+
+class RequestIDMiddleware:
+    """ASGI middleware: set request_id in context and add X-Request-ID to response."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        request_id = _get_header(scope, "x-request-id") or str(uuid.uuid4())
         try:
-            response = await call_next(request)
-            
-            # Calculate request duration
-            duration = time.time() - start_time
-            
-            # Log completed request
-            logger.info(
-                f"Request completed status={response.status_code} "
-                f"duration={duration:.3f}s"
-            )
-            
-            # Add request_id to response headers
-            response.headers["X-Request-ID"] = request_id
-            
-            return response
-            
-        except Exception as exc:
-            # Log failed request
-            duration = time.time() - start_time
-            logger.error(
-                f"Request failed error={str(exc)} duration={duration:.3f}s",
-                exc_info=True
-            )
-            raise
+            set_request_id(request_id)
+        except Exception:
+            pass
+
+        async def send_wrapper(message: dict) -> None:
+            if message.get("type") == "http.response.start":
+                h = list(message.get("headers") or [])
+                h.append((b"x-request-id", request_id.encode("utf-8")))
+                await send({**message, "headers": h})
+            else:
+                await send(message)
+
+        await self.app(scope, receive, send_wrapper)
 
 
-class CORSSecurityMiddleware(BaseHTTPMiddleware):
-    """
-    Additional security headers middleware
-    """
-    
-    async def dispatch(
-        self, request: Request, call_next: Callable
-    ) -> Response:
-        """
-        Add security headers to responses
-        
-        Args:
-            request: Incoming HTTP request
-            call_next: Next middleware/route handler
-        
-        Returns:
-            HTTP response with security headers
-        """
-        response = await call_next(request)
-        
-        # Add security headers (basic set)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        
-        return response
+class CORSSecurityMiddleware:
+    """ASGI middleware: add security headers to response."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        async def send_wrapper(message: dict) -> None:
+            if message.get("type") == "http.response.start":
+                h = list(message.get("headers") or [])
+                h.append((b"x-content-type-options", b"nosniff"))
+                h.append((b"x-frame-options", b"DENY"))
+                h.append((b"x-xss-protection", b"1; mode=block"))
+                await send({**message, "headers": h})
+            else:
+                await send(message)
+
+        await self.app(scope, receive, send_wrapper)
 
 

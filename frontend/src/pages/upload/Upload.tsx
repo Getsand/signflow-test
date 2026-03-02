@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button } from '../../components/ui';
 import { uploadFile } from '../../lib/fileApi';
 import { UploadProgress } from '../../types/file';
+import { logger } from '../../utils/logger';
 
 /**
  * Upload Page
@@ -12,7 +13,6 @@ import { UploadProgress } from '../../types/file';
  */
 export const Upload: React.FC = () => {
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -20,17 +20,7 @@ export const Upload: React.FC = () => {
   const [dragActive, setDragActive] = useState(false);
   const [error, setError] = useState<string>('');
 
-  // Determine redirect destination based on where user came from
-  // If coming from templates page, redirect back to templates
-  // Otherwise, redirect to documents
-  const getRedirectPath = () => {
-    const state = location.state as { from?: string } | null;
-    if (state?.from === 'templates' || location.pathname.includes('template')) {
-      return '/templates';
-    }
-    // Default: redirect to templates since uploads are for templates
-    return '/templates';
-  };
+  // After upload we redirect to Prepare page for the uploaded file.
 
 
   const handleDrag = (e: React.DragEvent) => {
@@ -101,18 +91,17 @@ export const Upload: React.FC = () => {
         }
       );
 
-      console.log('Upload complete:', fileMetadata);
 
       // Reset state
       setSelectedFile(null);
       setUploadProgress(0);
 
-      // Redirect to templates page (where templates are managed)
-      navigate(getRedirectPath());
+      // Redirect to Prepare page so user can add signature fields
+      navigate(`/documents/${fileMetadata.id}/prepare`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Upload failed. Please try again.';
       setError(errorMessage);
-      console.error('Upload failed:', err);
+      logger.error('Upload failed:', err);
     } finally {
       setUploading(false);
     }

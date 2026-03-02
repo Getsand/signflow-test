@@ -8,6 +8,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { SignatureField } from '../../lib/signatureFieldApi';
 import { pdfToScreen, screenToPdf, pdfDimensionsToScreen, screenDimensionsToPdf } from '../../utils/pdfCoordinates';
+import type { RecipientColor } from '../../utils/recipientColors';
 
 interface SignatureFieldOverlayProps {
   field: SignatureField;
@@ -20,6 +21,8 @@ interface SignatureFieldOverlayProps {
   editable?: boolean;
   role?: string; // UI-only role assignment (default: "Signer 1")
   isHighlighted?: boolean; // For scroll-to-field highlight effect
+  /** Zoho-style: unique color for this signer (border + background) */
+  accentColor?: RecipientColor | null;
 }
 
 /**
@@ -36,6 +39,7 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
   editable = true,
   role = 'Signer 1',
   isHighlighted = false,
+  accentColor = null,
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
@@ -165,14 +169,16 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
     rawType === 'EMAIL' ? 'Email' :
     rawType === 'COMPANY' ? 'Company' :
     rawType;
-  
-  // Zoho-like styling: light blue background, blue dashed border
+
+  // Zoho-style: per-signer color when accentColor provided; else default blue
+  const borderColor = accentColor?.border ?? '#4F8DF7';
+  const bgColor = accentColor?.bgLight ?? '#EAF3FF';
   const baseStyles = isLocked
     ? 'bg-gray-100 border-gray-300 cursor-not-allowed'
-    : 'bg-[#EAF3FF] border-[#4F8DF7] cursor-move';
-  
+    : 'cursor-move';
   const borderStyle = isLocked ? 'border-2 border-solid' : 'border-2 border-dashed';
   const highlightStyle = isHighlighted ? 'ring-2 ring-blue-500 ring-offset-2' : '';
+  const dynamicStyle = !isLocked && (accentColor ?? true) ? { borderColor, backgroundColor: bgColor } : {};
 
   return (
     <div
@@ -185,15 +191,11 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
         height: `${screenDims.height}px`,
         zIndex: isDragging || isResizing ? 1000 : 100,
         borderRadius: '6px',
+        ...dynamicStyle,
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Role badge (top-left) */}
-      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-gray-100 rounded text-[10px] font-medium text-gray-600 pointer-events-none">
-        {role}
-      </div>
-
-      {/* Field content: show field type label (Signature, Text, Date, etc.) or Signed */}
+      {/* Field content: show only field type (Signature, Initial, etc.) or Signed — signer shown by color only */}
       <div className="absolute inset-0 flex items-center justify-center gap-1.5 pointer-events-none">
         {field.status === 'SIGNED' ? (
           <div className="flex items-center gap-1.5 text-xs font-medium text-green-700">
@@ -212,11 +214,14 @@ export const SignatureFieldOverlay: React.FC<SignatureFieldOverlayProps> = ({
         )}
       </div>
 
-      {/* Resize handle (bottom-right corner) */}
+      {/* Resize handle (bottom-right corner) - use accent color */}
       {isPending && (
         <div
-          className="resize-handle absolute bottom-0 right-0 w-3 h-3 bg-[#4F8DF7] cursor-se-resize rounded-br-md"
-          style={{ transform: 'translate(50%, 50%)' }}
+          className="resize-handle absolute bottom-0 right-0 w-3 h-3 cursor-se-resize rounded-br-md"
+          style={{
+            transform: 'translate(50%, 50%)',
+            backgroundColor: accentColor?.border ?? '#4F8DF7',
+          }}
         />
       )}
 

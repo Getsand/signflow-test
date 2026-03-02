@@ -1,8 +1,20 @@
 """
-SignFlow FastAPI Application
+SignFlo FastAPI Application
 """
+import os
+from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+
+# Load .env early so config finds DATABASE_URL/REDIS_URL no matter where uvicorn is run from
+try:
+    from dotenv import load_dotenv
+    _backend = Path(__file__).resolve().parent.parent  # backend/
+    load_dotenv(_backend / ".env")
+    load_dotenv(_backend.parent / ".env")           # signflow/ or signflow/signflow/
+    load_dotenv(_backend.parent.parent / ".env")   # signflow/signflow/ when backend is inside signflow/backend
+except ImportError:
+    pass
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,20 +36,25 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger = get_logger(__name__)
-    logger.info("🚀 Starting SignFlow API...")
+    logger.info("🚀 Starting SignFlo API...")
     logger.info(f"Environment: {settings.APP_ENV}")
     logger.info(f"Debug mode: {settings.DEBUG}")
+    logger.info(f"Email sender (EMAIL_FROM) for signing requests: {settings.EMAIL_FROM}")
+    logger.info(
+        f"Resend API key (RESEND_API_KEY): {'set (' + str(len(settings.RESEND_API_KEY)) + ' chars)' if settings.RESEND_API_KEY else 'NOT SET (emails will not be sent)'}"
+    )
 
     yield
 
-    logger.info("🛑 Shutting down SignFlow API...")
-    await engine.dispose()
+    logger.info("🛑 Shutting down SignFlo API...")
+    if engine is not None:
+        await engine.dispose()
 
 
 # 1️⃣ CREATE APP FIRST
 app = FastAPI(
     title=settings.APP_NAME,
-    description="SignFlow - Document Signature Management System",
+    description="SignFlo - Document Signature Management System",
     version="0.1.0",
     debug=settings.DEBUG,
     lifespan=lifespan,
@@ -47,9 +64,9 @@ app = FastAPI(
 setup_logging()
 logger = get_logger(__name__)
 
-# 3️⃣ MIDDLEWARE
-app.add_middleware(RequestIDMiddleware)
-app.add_middleware(CORSSecurityMiddleware)
+# 3️⃣ MIDDLEWARE (custom RequestID/Security disabled: they caused "Empty reply from server" in Docker)
+# app.add_middleware(RequestIDMiddleware)
+# app.add_middleware(CORSSecurityMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if settings.DEBUG else [],
@@ -70,12 +87,38 @@ app.include_router(signing_requests_router)
 from app.modules.signing_requests.signing_router import router as signing_router
 app.include_router(signing_router)
 
+# API keys under /api/v1 – always mount first so Create API Key never returns 404 (bad token → 401)
+try:
+    from app.api.controllers import api_keys as api_keys_controller
+    app.include_router(api_keys_controller.router, prefix="/api/v1")
+    logger.info("API keys routes loaded: POST/GET /api/v1/api-keys, DELETE /api/v1/api-keys/{id}")
+except Exception as e:
+    logger.warning("API keys router not loaded: %s", e)
+
+# Public API under /api/v1 (documents, requests + api-keys again if full router loads)
+try:
+    from app.api.router import api_router
+    app.include_router(api_router, prefix="/api/v1")
+    logger.info("Public API (api_router) loaded: /api/v1/documents, /api/v1/requests, /api/v1/api-keys")
+except Exception as e:
+    logger.exception("Public API (app.api) failed to load: %s", e)
+    from fastapi import APIRouter
+    _fallback = APIRouter(tags=["Public API (fallback)"])
+    @_fallback.get("", include_in_schema=True)
+    async def _api_v1_fallback():
+        return {
+            "error": "Public API module failed to load",
+            "detail": str(e),
+            "hint": "Check that app/api and app/api/controllers exist; restart the backend.",
+        }
+    app.include_router(_fallback, prefix="/api/v1")
+
 # 5️⃣ EXCEPTION HANDLERS
 @app.exception_handler(SignFlowException)
 async def signflow_exception_handler(
     request: Request, exc: SignFlowException
 ) -> JSONResponse:
-    logger.error(f"SignFlow exception: {exc.code} - {exc.message}")
+    logger.error(f"SignFlo exception: {exc.code} - {exc.message}")
 
     status_map = {
         "NOT_FOUND": status.HTTP_404_NOT_FOUND,
@@ -110,15 +153,14 @@ async def general_exception_handler(
     )
 
 
-# 6️⃣ HEALTH
+# 6️⃣ HEALTH (no Request dependency so response is always sent)
 @app.get("/health", tags=["System"])
-async def health_check(request: Request):
+async def health_check():
     return {
         "status": "healthy",
         "app_name": settings.APP_NAME,
         "environment": settings.APP_ENV,
         "version": "0.1.0",
-        "request_id": getattr(request.state, "request_id", None),
     }
 
 

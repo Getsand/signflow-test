@@ -16,7 +16,7 @@ from app.modules.signatures.models import SignatureField, SignatureFieldStatus
 class _SignatureFieldRow:
     """Row-like object for list_by_file when role column is missing (pre-migration)."""
     __slots__ = ("id", "file_id", "page_number", "x", "y", "width", "height", "assigned_to", "field_type", "status", "signed_at", "created_at", "role")
-    def __init__(self, id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at):
+    def __init__(self, id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at, role=None):
         self.id = id
         self.file_id = file_id
         self.page_number = page_number
@@ -29,7 +29,7 @@ class _SignatureFieldRow:
         self.status = status
         self.signed_at = signed_at
         self.created_at = created_at
-        self.role = None
+        self.role = role
 
 
 class SignatureFieldRepository:
@@ -76,9 +76,44 @@ class SignatureFieldRepository:
         except ProgrammingError as e:
             if "role" not in str(e).lower():
                 raise
-            # Table has no role column (migration not run) — insert without role
+            # Table has no role column (migration not run) — try to insert with role first, fall back if column doesn't exist
             await self.session.rollback()
             new_id = uuid_lib.uuid4()
+            
+            # Try to insert with role column first (if migration has been run)
+            if role is not None:
+                try:
+                    stmt_with_role = text(
+                        "INSERT INTO signature_fields (id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, created_at, role) "
+                        "VALUES (:id, :file_id, :page_number, :x, :y, :width, :height, :assigned_to, :field_type, 'PENDING'::signaturefieldstatus, now(), :role) "
+                        "RETURNING id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at, role"
+                    )
+                    r = await self.session.execute(stmt_with_role, {
+                        "id": str(new_id),
+                        "file_id": str(file_id),
+                        "page_number": page_number,
+                        "x": x, "y": y, "width": width, "height": height,
+                        "assigned_to": str(assigned_to),
+                        "field_type": field_type,
+                        "role": role,
+                    })
+                    row = r.fetchone()
+                    if not row:
+                        raise RuntimeError("Insert succeeded but RETURNING gave no row")
+                    status_val = row[9]
+                    status_str = getattr(status_val, "value", status_val) if status_val is not None else "PENDING"
+                    return _SignatureFieldRow(
+                        id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
+                        width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
+                        status=status_str, signed_at=row[10], created_at=row[11],
+                        role=row[12] if len(row) > 12 else None,
+                    )
+                except ProgrammingError:
+                    # Role column doesn't exist - fall through to insert without role
+                    await self.session.rollback()
+                    pass
+            
+            # Fallback: insert without role column (pre-migration state)
             stmt = text(
                 "INSERT INTO signature_fields (id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, created_at) "
                 "VALUES (:id, :file_id, :page_number, :x, :y, :width, :height, :assigned_to, :field_type, 'PENDING'::signaturefieldstatus, now()) "
@@ -101,49 +136,98 @@ class SignatureFieldRepository:
                 id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
                 width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
                 status=status_str, signed_at=row[10], created_at=row[11],
+                role=None,
             )
 
     async def get_by_id(self, field_id: UUID) -> Optional[Union[SignatureField, _SignatureFieldRow]]:
-        """Fetch signature field by ID. Uses raw SQL without role column so it works before/after role migration."""
-        stmt = text(
-            "SELECT id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at "
-            "FROM signature_fields WHERE id = :fid"
-        )
-        r = await self.session.execute(stmt, {"fid": str(field_id)})
-        row = r.fetchone()
-        if not row:
-            return None
-        status_val = row[9]
-        status_str = getattr(status_val, "value", status_val) if status_val is not None else "PENDING"
-        return _SignatureFieldRow(
-            id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
-            width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
-            status=status_str, signed_at=row[10], created_at=row[11],
-        )
+        """Fetch signature field by ID. Uses raw SQL with role column if available."""
+        # Try to query with role column first (post-migration)
+        try:
+            stmt_with_role = text(
+                "SELECT id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at, role "
+                "FROM signature_fields WHERE id = :fid"
+            )
+            r = await self.session.execute(stmt_with_role, {"fid": str(field_id)})
+            row = r.fetchone()
+            if not row:
+                return None
+            status_val = row[9]
+            status_str = getattr(status_val, "value", status_val) if status_val is not None else "PENDING"
+            return _SignatureFieldRow(
+                id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
+                width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
+                status=status_str, signed_at=row[10], created_at=row[11],
+                role=row[12] if len(row) > 12 else None,
+            )
+        except ProgrammingError as e:
+            # Column doesn't exist yet (pre-migration) - fall back to query without role
+            if "role" not in str(e).lower():
+                raise
+            stmt = text(
+                "SELECT id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at "
+                "FROM signature_fields WHERE id = :fid"
+            )
+            r = await self.session.execute(stmt, {"fid": str(field_id)})
+            row = r.fetchone()
+            if not row:
+                return None
+            status_val = row[9]
+            status_str = getattr(status_val, "value", status_val) if status_val is not None else "PENDING"
+            return _SignatureFieldRow(
+                id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
+                width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
+                status=status_str, signed_at=row[10], created_at=row[11],
+                role=None,
+            )
 
     async def list_by_file(self, file_id: UUID) -> List[Union[SignatureField, _SignatureFieldRow]]:
         """Get all signature fields for a file. Uses raw SQL without role column to avoid transaction/async issues when role column is missing."""
         return await self._list_by_file_raw(file_id)
 
     async def _list_by_file_raw(self, file_id: UUID) -> List[_SignatureFieldRow]:
-        """Raw query without role column (works before and after migration; role is always None here)."""
-        fallback = text(
-            "SELECT id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at "
-            "FROM signature_fields WHERE file_id = :fid ORDER BY page_number, created_at"
-        )
-        r = await self.session.execute(fallback, {"fid": str(file_id)})
-        rows = r.fetchall()
-        def _status_str(s):
-            return getattr(s, "value", s) if s is not None else "PENDING"
-
-        return [
-            _SignatureFieldRow(
-                id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
-                width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
-                status=_status_str(row[9]), signed_at=row[10], created_at=row[11],
+        """Raw query with role column if available (works before and after migration)."""
+        # Try to query with role column first (post-migration)
+        try:
+            stmt_with_role = text(
+                "SELECT id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at, role "
+                "FROM signature_fields WHERE file_id = :fid ORDER BY page_number, created_at"
             )
-            for row in rows
-        ]
+            r = await self.session.execute(stmt_with_role, {"fid": str(file_id)})
+            rows = r.fetchall()
+            def _status_str(s):
+                return getattr(s, "value", s) if s is not None else "PENDING"
+
+            return [
+                _SignatureFieldRow(
+                    id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
+                    width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
+                    status=_status_str(row[9]), signed_at=row[10], created_at=row[11],
+                    role=row[12] if len(row) > 12 else None,
+                )
+                for row in rows
+            ]
+        except ProgrammingError as e:
+            # Column doesn't exist yet (pre-migration) - fall back to query without role
+            if "role" not in str(e).lower():
+                raise
+            fallback = text(
+                "SELECT id, file_id, page_number, x, y, width, height, assigned_to, field_type, status, signed_at, created_at "
+                "FROM signature_fields WHERE file_id = :fid ORDER BY page_number, created_at"
+            )
+            r = await self.session.execute(fallback, {"fid": str(file_id)})
+            rows = r.fetchall()
+            def _status_str(s):
+                return getattr(s, "value", s) if s is not None else "PENDING"
+
+            return [
+                _SignatureFieldRow(
+                    id=row[0], file_id=row[1], page_number=row[2], x=row[3], y=row[4],
+                    width=row[5], height=row[6], assigned_to=row[7], field_type=row[8],
+                    status=_status_str(row[9]), signed_at=row[10], created_at=row[11],
+                    role=None,
+                )
+                for row in rows
+            ]
 
     async def delete(self, field_id: UUID) -> bool:
         """

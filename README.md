@@ -1,226 +1,244 @@
-# SignFlow - Enterprise Document Signature Management System
+# SignFlo – Enterprise Document Signature Management System
 
-> A modern, full-stack SaaS platform for digital document signing and workflow management, inspired by Zoho Sign.
+> A complete, full-stack SaaS platform for digital document signing and workflow management, inspired by Zoho Sign.
 
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.109.0-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
-[![React](https://img.shields.io/badge/React-19.2.3-61DAFB?logo=react)](https://reactjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.109+-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://reactjs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql)](https://www.postgresql.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 
-SignFlow is a production-ready document signature management system that enables users to upload PDFs, place signature fields, manage signing workflows, and track document status. Built with modern technologies and best practices for scalability and maintainability.
+SignFlo is a **production-ready** document signature management system. Users can upload PDFs, create templates with signature fields, send signing requests (sequential or parallel), and sign documents via email links. The backend also exposes a **public API** with API-key auth and rate limiting for integrations.
+
+---
 
 ## ✨ Features
 
-- **User Authentication**: Secure JWT-based authentication with email/password
-- **Document Management**: Upload, view, and manage PDF documents
-- **Signature Field Placement**: Interactive PDF viewer with drag-and-drop signature field placement
-- **Signing Workflows**: Create and manage signing requests with status tracking
-- **Presigned URLs**: Secure MinIO integration for document storage
-- **Real-time Status**: Track document status (UPLOADING, COMPLETED, LOCKED, FAILED)
-- **Responsive UI**: Modern React frontend with Zoho Sign-inspired design
-- **API Documentation**: Auto-generated OpenAPI/Swagger documentation
+### Web application
+- **Authentication** – JWT-based login/signup (email + password)
+- **Document management** – Upload, view, rename, and delete PDFs; presigned uploads via MinIO
+- **Templates** – Turn documents into reusable templates; add signature, initial, date, text, email, and related fields with role assignment (e.g. Signer 1, Signer 2)
+- **Prepare** – Interactive PDF viewer to place and resize fields per page
+- **Signing requests** – Create requests from templates, set **signing order** (sequential or parallel), map roles to recipient emails, send invitations
+- **Sequential signing** – Optional queue: only the first signer gets the email; the next receives it after the previous completes; signers see prior signatures
+- **Parallel signing** – All signers receive the email at once and can sign in any order
+- **Public signing** – Recipients open a tokenized link (no login), sign or fill fields, and complete; professional modal (draw/type signature, clear overlay)
+- **Email invitations** – Signing links sent via Resend (configurable)
+- **Status tracking** – Draft, Sent, In progress, Completed for requests and recipients
+- **Download** – Signed PDF download for completed requests
+- **Responsive UI** – React + Tailwind; Zoho Sign–inspired layout (sidebar, dashboard, documents, templates)
 
-## 🛠️ Tech Stack
+### Public API (Zoho Sign–style)
+- **Auth** – Register, login (JWT), create/list/revoke API keys
+- **Documents** – List, presign, finalize, get, update (rename), delete
+- **Templates** – List, create, get, update, add/list fields
+- **Field types** – GET supported types (SIGNATURE, INITIAL, DATE, TEXT, EMAIL, etc.)
+- **Requests** – List, stats, create from template, get, send, download signed PDF, delete
+- **Users** – Me, list users, invite, update profile/access/role, delete (optional user-management migration)
+- **Rate limiting** – Per API key (e.g. 60 req/min), optional Redis
+
+See **`backend/WRAPPER_README.md`** and **`backend/PUBLIC_API.md`** for full API details.
+
+---
+
+## 🛠️ Tech stack
 
 ### Backend
-- **Python 3.11** - Modern Python with async support
-- **FastAPI 0.109** - High-performance async web framework
-- **SQLAlchemy 2.0** - Async ORM with type hints
-- **PostgreSQL 15** - Production-ready relational database
-- **Alembic** - Database migration management
-- **Redis 7** - Caching and session management
-- **MinIO** - S3-compatible object storage
-- **Pydantic v2** - Data validation and settings management
-- **JWT** - Secure token-based authentication
+- **Python 3.11+** – Async support
+- **FastAPI** – Async web framework
+- **SQLAlchemy 2.0** – Async ORM, type hints
+- **PostgreSQL 15** – Database
+- **Alembic** – Migrations
+- **Redis 7** – Caching / rate limiting (optional)
+- **MinIO** – S3-compatible object storage (presigned URLs)
+- **Resend** – Transactional email (signing invitations)
+- **Pydantic v2** – Validation and settings
+- **JWT** – Auth tokens; API keys for public API
 
 ### Frontend
-- **React 19.2** - Latest React with hooks
-- **TypeScript 5.9** - Type-safe JavaScript
-- **Vite 7.2** - Fast build tool and dev server
-- **Tailwind CSS 4.1** - Utility-first CSS framework
-- **React Router 7** - Client-side routing
-- **React-PDF 10.3** - PDF.js-based PDF rendering
-- **Axios** - HTTP client for API calls
+- **React 19** – Hooks, lazy-loaded routes
+- **TypeScript 5.9** – Type safety
+- **Vite 7** – Build and dev server
+- **Tailwind CSS** – Styling
+- **React Router 7** – Routing
+- **React-PDF** – PDF.js-based viewer and field overlays
 
-## 📁 Project Structure
+---
+
+## 📁 Project structure
 
 ```
 signflow/
-├── backend/                    # FastAPI backend
+├── backend/
 │   ├── app/
-│   │   ├── core/               # Core configuration
-│   │   │   ├── config.py       # Settings (Pydantic)
-│   │   │   ├── db.py           # Database connection
-│   │   │   ├── security.py     # JWT & password hashing
-│   │   │   └── storage.py      # MinIO integration
-│   │   ├── modules/            # Feature modules
-│   │   │   ├── auth/           # Authentication
-│   │   │   ├── files/          # File management
-│   │   │   ├── signatures/     # Signature fields
-│   │   │   └── signing_requests/ # Signing workflows
-│   │   ├── models.py           # SQLAlchemy models
-│   │   └── main.py             # FastAPI app
-│   ├── alembic/                # Database migrations
-│   ├── requirements.txt        # Python dependencies
-│   └── Dockerfile              # Backend container
-├── frontend/                    # React frontend
+│   │   ├── api/                    # Public API (API key auth)
+│   │   │   ├── controllers/         # documents, templates, requests, users, api_keys, field_types
+│   │   │   ├── deps.py             # API key auth, rate limit
+│   │   │   ├── models.py           # ApiKey, ApiUsageLog
+│   │   │   ├── repo.py
+│   │   │   ├── router.py           # Mounts under /api/v1
+│   │   │   └── schemas.py
+│   │   ├── core/                   # config, db, security, storage, logging, middleware
+│   │   ├── modules/
+│   │   │   ├── auth/               # Register, login, JWT, user model
+│   │   │   ├── files/              # Upload, presign, finalize, view URL
+│   │   │   ├── signatures/         # Template field CRUD
+│   │   │   └── signing_requests/   # Create/send requests, status; public signing (by token)
+│   │   ├── shared/                 # Exceptions, etc.
+│   │   └── main.py                # FastAPI app, CORS, routers
+│   ├── alembic/                    # Migrations (including user-management fields)
+│   ├── postman/                    # Public API collection
+│   ├── WRAPPER_README.md           # Public API overview
+│   ├── PUBLIC_API.md               # Full API + Zoho mapping
+│   ├── requirements.txt
+│   └── Dockerfile
+├── frontend/
 │   ├── src/
-│   │   ├── components/        # Reusable components
-│   │   ├── pages/              # Page components
-│   │   ├── lib/                # API clients
-│   │   └── utils/              # Utilities
+│   │   ├── components/            # Sidebar, ProtectedRoute, UI, PDF overlays, layout
+│   │   ├── pages/                 # auth, dashboard, upload, documents, Prepare, templates, signing-requests, signing (SignerPage)
+│   │   ├── lib/                   # Auth context, API clients (files, signing, templates, etc.)
+│   │   ├── types/
+│   │   └── utils/
 │   ├── package.json
 │   └── vite.config.ts
-├── docker-compose.yml           # Multi-container setup
-├── Makefile                     # Development commands
-└── README.md                    # This file
+├── docker-compose.yml              # postgres, redis, minio, backend
+├── .env                            # DATABASE_URL, REDIS_URL, MINIO_*, RESEND_*, FRONTEND_BASE_URL, etc.
+└── README.md                       # This file
 ```
 
-## 🚀 Quick Start
+---
+
+## 🚀 Quick start
 
 ### Prerequisites
+- **Docker** and **Docker Compose**
+- **Node.js** (for frontend dev; LTS recommended)
+- **Git**
 
-- Docker & Docker Compose
-- Make (optional, but recommended)
-- Git
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone <repository-url>
-   cd signflow
-   ```
-
-2. **Start all services:**
-   ```bash
-   make up
-   # or
-   docker-compose up -d
-   ```
-
-3. **Run database migrations:**
-   ```bash
-   make migrate
-   # or
-   docker-compose exec backend alembic upgrade head
-   ```
-
-4. **Start frontend development server:**
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-
-5. **Access the application:**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:8000
-   - API Docs: http://localhost:8000/docs
-   - MinIO Console: http://localhost:9001 (admin/admin)
-
-### First User Setup
-
-1. Navigate to http://localhost:5173
-2. Click "Sign Up" to create your account
-3. Login with your credentials
-4. Upload a PDF document to get started
-
-### Available Commands
-
+### 1. Clone and enter project
 ```bash
-make help          # Show all available commands
-make build         # Build all containers
-make up            # Start all services
-make down          # Stop all services
-make logs          # View all logs
-make logs-backend  # View backend logs only
-make migrate       # Run database migrations
-make revision m="message"  # Create new migration
-make shell         # Open backend shell
-make shell-db      # Open PostgreSQL shell
-make clean         # Remove all containers and volumes
-make restart       # Restart all services
+git clone <repository-url>
+cd signflow
 ```
 
-### Development Workflow
+### 2. Environment
+- Copy or create `.env` in the **signflow** root (same folder as `docker-compose.yml`).
+- Ensure at least: `DATABASE_URL`, `REDIS_URL` (optional), MinIO vars, `RESEND_API_KEY`, `FRONTEND_BASE_URL=http://localhost:5173`.
+- See `backend/ENV_TEMPLATE.txt` (or project docs) for a full list.
 
-1. **Create a new migration:**
-   ```bash
-   make revision m="add new field"
-   ```
+### 3. Start backend services
+```bash
+docker compose up -d postgres redis minio backend
+```
 
-2. **Apply migrations:**
-   ```bash
-   make migrate
-   ```
+### 4. Run database migrations
+Migrations must run **inside** the backend container (so the correct Python and env are used):
+```bash
+docker compose exec backend alembic upgrade head
+```
+This applies all migrations, including the one that adds `invited_by_id`, `is_active`, and `role` to `users` (required for login and optional API user management).
 
-3. **Access database:**
-   ```bash
-   make shell-db
-   ```
+### 5. Frontend
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-4. **View backend logs:**
-   ```bash
-   make logs-backend
-   ```
+### 6. Open the app
+- **Web app:** http://localhost:5173  
+- **API docs:** http://localhost:8000/docs  
+- **MinIO console:** http://localhost:9001 (e.g. minioadmin / minioadmin)
 
-### Health Check
+### First-time use
+1. Open http://localhost:5173 → **Sign up** with email and password.
+2. **Log in** and go to **Dashboard**.
+3. **Upload** a PDF or create a **Template** (upload → open document → Prepare → add fields → save as template).
+4. From **Templates**, start a **New signing request**, choose sequential or parallel, add recipient emails, and **Send**.
+5. Recipients use the link from the email to open the **public signing page** and complete their fields.
 
-Test the health endpoint:
+---
+
+## 🔧 Configuration
+
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | PostgreSQL (e.g. `postgresql+asyncpg://user:pass@host:5432/db`) |
+| `REDIS_URL` | Optional; rate limiting and caching |
+| `MINIO_*` | Storage endpoint, keys, bucket |
+| `RESEND_API_KEY` | Sending signing invitation emails |
+| `EMAIL_FROM` | Sender address for emails |
+| `FRONTEND_BASE_URL` | Frontend origin (e.g. `http://localhost:5173`) for links in emails |
+| `VITE_API_URL` | (Frontend) Backend base URL (e.g. `http://localhost:8000`) |
+
+Frontend expects `VITE_API_URL`; create `frontend/.env` with:
+```bash
+VITE_API_URL=http://localhost:8000
+```
+Restart the Vite dev server after changing env.
+
+---
+
+## 📌 Useful commands
+
+| Command | Description |
+|--------|-------------|
+| `docker compose up -d` | Start all services |
+| `docker compose exec backend alembic upgrade head` | Run migrations (always in container) |
+| `docker compose restart backend` | Restart backend after config/migration changes |
+| `docker compose logs -f backend` | Tail backend logs |
+| `cd frontend && npm run dev` | Start frontend dev server |
+| `cd frontend && npm run build` | Production build |
+
+Optional **Make** targets (if you have a `Makefile`):
+- `make up` / `make down` – Start/stop services  
+- `make migrate` – Run migrations via container  
+- `make logs-backend` – Backend logs  
+
+---
+
+## 🏥 Health check
+
 ```bash
 curl http://localhost:8000/health
 ```
 
-Expected response:
+Example response:
 ```json
 {
   "status": "healthy",
-  "app_name": "SignFlow",
+  "app_name": "SignFlo",
   "environment": "development",
   "version": "0.1.0"
 }
 ```
 
-### Database Models
+---
 
-#### User Model
-- `id`: Primary key
-- `email`: Unique email address (indexed)
-- `full_name`: Optional full name
-- `is_active`: Account status
-- `is_superuser`: Admin flag
-- `created_at`: Creation timestamp
-- `updated_at`: Last update timestamp
+## 📄 Public API (summary)
 
-### Configuration
+- **Base URL:** `http://localhost:8000/api/v1`
+- **Web auth:** Register → Login → use `access_token` as `Authorization: Bearer <access_token>`.
+- **API keys:** Create key (e.g. `POST /api/v1/auth/api-keys` or `POST /api/v1/api-keys`) with JWT; use returned `api_key` as `Authorization: Bearer <api_key>` for documents, templates, requests, users.
+- **Docs:** http://localhost:8000/docs and `GET /api/v1` for a short summary.
+- **Postman:** Import `backend/postman/SignFlo_Public_API.postman_collection.json` and set `base_url`.
 
-All configuration is managed through environment variables. Key settings:
-
-- **Database**: PostgreSQL connection parameters
-- **Redis**: Cache connection settings
-- **MinIO**: Object storage credentials
-- **App**: General application settings
-
-See `backend/app/core/config.py` for all available options.
-
-### Architecture Notes
-
-- **Async/Await**: Full async support with SQLAlchemy 2.0
-- **Type Safety**: Pydantic v2 for settings and validation
-- **Migrations**: Alembic with async engine support
-- **Health Checks**: Docker health checks for all services
-- **Dependencies**: Service dependencies managed in docker-compose
-
-### Next Steps
-
-- Milestone B: Authentication & Authorization
-- Milestone C: Document Management
-- Milestone D: Signature Workflows
-- Milestone E: Frontend Integration
+Details: **`backend/WRAPPER_README.md`**, **`backend/PUBLIC_API.md`**.
 
 ---
 
-**Status**: Milestone A Complete ✅
+## ✅ Status
 
+**Project: Complete.**
 
+- ✅ User auth (register, login, JWT)  
+- ✅ Document upload and management (presign, finalize, MinIO)  
+- ✅ Templates and signature/field placement (Prepare)  
+- ✅ Signing requests (create, send, sequential/parallel, email invitations)  
+- ✅ Public signing page (token-based, draw/type, completion)  
+- ✅ Download signed PDF  
+- ✅ Public API with API keys and rate limiting  
+- ✅ Database migrations (including user-management fields for API)
+
+---
+
+**SignFlo** – Document signature management, web app + API.
