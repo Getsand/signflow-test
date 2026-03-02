@@ -198,7 +198,7 @@ Content-Type: application/json
   "key_prefix": "sk_live_xxxx…",
   "name": "My integration",
   "rate_limit_per_minute": 60,
-  "api_key": "sk_live_xxxxxxxxxxxxxxxxxxxxxxxx",
+  // "api_key": "sk_live_xxxxxxxxxxxxxxxxxxxxxxxx",
   "created_at": "2026-02-21T12:00:00Z"
 }
 ```
