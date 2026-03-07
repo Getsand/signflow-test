@@ -2,7 +2,7 @@
 
 Base URL: `http://127.0.0.1:8000` (or your server) → all paths below are under **`/api/v1`**.
 
----
+-
 
 ## Complete wrapper – quick reference
 

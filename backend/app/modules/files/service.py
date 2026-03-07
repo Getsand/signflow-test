@@ -27,7 +27,13 @@ ALLOWED_MIME_TYPES = {
 class FileService:
     def __init__(self, repo: FileRepository):
         self.repo = repo
-        self.minio = get_internal_minio_client()
+        self._minio = None
+
+    def _get_minio(self):
+        """Lazy-init internal MinIO client so presign does not require MinIO connection."""
+        if self._minio is None:
+            self._minio = get_internal_minio_client()
+        return self._minio
 
     async def create_presigned_upload(
         self,
@@ -90,7 +96,7 @@ class FileService:
 
         # ---- Verify object exists in MinIO ----
         try:
-            stat = self.minio.stat_object(
+            stat = self._get_minio().stat_object(
                 bucket_name=file_obj.bucket,
                 object_name=file_obj.storage_key,
             )
@@ -144,7 +150,7 @@ class FileService:
         
         # ---- Delete from MinIO storage ----
         try:
-            self.minio.remove_object(
+            self._get_minio().remove_object(
                 bucket_name=file_obj.bucket,
                 object_name=file_obj.storage_key,
             )

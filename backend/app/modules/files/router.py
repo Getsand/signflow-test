@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.deps import get_current_user
 from app.core.storage import generate_presigned_get_url
@@ -52,13 +53,13 @@ async def presign_upload(
             detail=str(e)
         )
     except Exception as e:
-        # Production-safe: Log unexpected errors
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error in presign_upload: {e}", exc_info=True)
+        detail = str(e) if get_settings().DEBUG else "Failed to initialize upload. Please try again."
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to initialize upload. Please try again."
+            detail=detail,
         )
 
 

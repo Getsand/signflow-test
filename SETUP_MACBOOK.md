@@ -95,9 +95,9 @@ DATABASE_URL=postgresql+asyncpg://signflow:signflow_dev_password@postgres:5432/s
 # Redis (optional; used for rate limiting)
 REDIS_URL=redis://redis:6379/0
 
-# MinIO (document storage)
+# MinIO (document storage). When backend runs in Docker, use host.docker.internal so presigned URLs work in the browser.
 MINIO_INTERNAL_ENDPOINT=minio:9000
-MINIO_PUBLIC_ENDPOINT=localhost:9000
+MINIO_PUBLIC_ENDPOINT=host.docker.internal:9000
 MINIO_ACCESS_KEY=minioadmin
 MINIO_SECRET_KEY=minioadmin
 MINIO_BUCKET=signflow-documents

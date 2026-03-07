@@ -2,9 +2,12 @@
 MinIO storage helpers
 
 Strategy:
-- Backend uses minio:9000 for actual operations (Docker network)
-- Presigned URLs use localhost:9000 (what clients can reach)
-- SDK generates URLs with region='us-east-1' to minimize connection needs
+- All MinIO operations use MINIO_INTERNAL_ENDPOINT (e.g. minio:9000) so the backend
+  in Docker can connect. Presigned URLs therefore contain that host.
+- For the browser to reach MinIO when backend runs in Docker, either:
+  A) Add "127.0.0.1 minio" to your hosts file (macOS/Linux: /etc/hosts), or
+  B) Set MINIO_PUBLIC_ENDPOINT=host.docker.internal:9000 and use that for presigned
+     URL generation (backend must connect to it; works on Docker Desktop Mac/Windows).
 """
 
 import os
@@ -16,6 +19,8 @@ from minio.error import S3Error
 
 # ---- ENV ----
 MINIO_INTERNAL_ENDPOINT = os.getenv("MINIO_INTERNAL_ENDPOINT", "minio:9000")
+# When backend runs in Docker, use host.docker.internal so backend can connect AND
+# browser gets a URL it can resolve (Mac/Windows). Leave as localhost if backend runs on host.
 MINIO_PUBLIC_ENDPOINT = os.getenv("MINIO_PUBLIC_ENDPOINT", "localhost:9000")
 
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
@@ -27,8 +32,8 @@ MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
 # ---- Internal Client (Backend Operations) ----
 def get_internal_minio_client() -> Minio:
     """
-    MinIO client for backend operations.
-    Uses internal Docker endpoint: minio:9000
+    MinIO client for backend operations (bucket exists, stat_object, presign, etc.).
+    Uses MINIO_INTERNAL_ENDPOINT (e.g. minio:9000) so backend in Docker can connect.
     """
     client = Minio(
         MINIO_INTERNAL_ENDPOINT,
@@ -47,87 +52,65 @@ def get_internal_minio_client() -> Minio:
     return client
 
 
-# Legacy function for compatibility
 def get_presign_minio_client() -> Minio:
-    """Deprecated: Use get_internal_minio_client() instead"""
-    return get_internal_minio_client()
+    """
+    MinIO client for generating presigned URLs. Uses MINIO_PUBLIC_ENDPOINT when set
+    to a host the backend can reach (e.g. host.docker.internal:9000 in Docker on Mac/Windows),
+    so the SDK can connect if needed and the returned URL works in the browser.
+    Otherwise uses internal endpoint (minio:9000); browser then needs "127.0.0.1 minio" in hosts.
+    """
+    endpoint = MINIO_PUBLIC_ENDPOINT.strip()
+    # If public endpoint is localhost and we're in Docker, backend cannot connect to it.
+    # Use internal endpoint so backend works; user must add hosts entry for browser.
+    if endpoint in ("localhost:9000", "127.0.0.1:9000"):
+        return get_internal_minio_client()
+    client = Minio(
+        endpoint,
+        access_key=MINIO_ACCESS_KEY,
+        secret_key=MINIO_SECRET_KEY,
+        secure=MINIO_SECURE,
+    )
+    return client
 
 
 # ---- Presigned URL Generation ----
 def generate_presigned_put_url(object_name: str) -> str:
     """
     Generate presigned PUT URL for client uploads.
-    
-    NOTE: Presigned URLs include hostname in signature.
-    Cannot replace hostname without invalidating signature.
-    Client must be able to access minio:9000 (via hosts file or Docker network).
-    
-    Args:
-        object_name: Storage key (e.g., "uploads/uuid/filename.pdf")
-    
-    Returns:
-        Presigned PUT URL (as-is from MinIO, hostname in signature)
+    Uses get_presign_minio_client() so when MINIO_PUBLIC_ENDPOINT is set to
+    host.docker.internal:9000 (Docker Mac/Windows), backend and browser both work.
     """
-    client = get_internal_minio_client()
-    
-    # Return URL as-is - signature includes hostname
-    # Client must access using the same hostname (minio:9000)
-    # For browser access, add minio to hosts file: 127.0.0.1 minio
-    url = client.presigned_put_object(
+    client = get_presign_minio_client()
+    return client.presigned_put_object(
         bucket_name=MINIO_BUCKET,
         object_name=object_name,
         expires=timedelta(minutes=15),
     )
-    
-    return url
 
 
 def generate_presigned_get_url(object_name: str, expires_minutes: int = 60) -> str:
     """
     Generate presigned GET URL for viewing/downloading files.
-    
-    NOTE: Presigned URLs include hostname in signature.
-    URL will contain minio:9000 - browser must be able to access it.
-    Add to hosts file: 127.0.0.1 minio
-    
-    Args:
-        object_name: Storage key (e.g., "uploads/uuid/filename.pdf")
-        expires_minutes: URL expiration time in minutes (default: 60)
-    
-    Returns:
-        Presigned GET URL (as-is from MinIO, hostname in signature)
-    
-    Raises:
-        S3Error: If object does not exist in bucket
+    Verifies object exists then returns URL (same endpoint logic as put).
     """
-    client = get_internal_minio_client()
-    
-    # CRITICAL: Verify object exists before generating presigned URL
-    # This prevents returning URLs that return error documents (54-byte responses)
+    logger = logging.getLogger(__name__)
+    internal = get_internal_minio_client()
     try:
-        client.stat_object(
+        internal.stat_object(
             bucket_name=MINIO_BUCKET,
             object_name=object_name,
         )
     except S3Error as e:
-        # Log clearly for debugging
-        logger = logging.getLogger(__name__)
         logger.error(
             f"Object not found in MinIO: bucket={MINIO_BUCKET}, "
             f"storage_key={object_name}, error={e}"
         )
         raise
-    
-    # Generate presigned URL - signature includes hostname
-    # Cannot replace hostname without invalidating signature
-    # Client must access using same hostname (minio:9000)
+    client = get_presign_minio_client()
     url = client.presigned_get_object(
         bucket_name=MINIO_BUCKET,
         object_name=object_name,
         expires=timedelta(minutes=expires_minutes),
     )
-    
-    logger = logging.getLogger(__name__)
     logger.debug(f"Generated presigned GET URL: {url}")
-    
     return url
