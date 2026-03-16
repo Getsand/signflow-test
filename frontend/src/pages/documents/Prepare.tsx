@@ -596,7 +596,7 @@ export const Prepare: React.FC = () => {
   if (hasCriticalError) {
     return (
       <div className="max-w-3xl mx-auto p-8">
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
           {error}
         </div>
         <Link to="/documents">

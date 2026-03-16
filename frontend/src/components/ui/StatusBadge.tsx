@@ -28,6 +28,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
     md: 'px-3 py-1 text-sm',
   };
 
+  /* Draft=gray, Sent=blue, Viewed/In progress=orange, Completed=green, Failed=red */
   const statusConfig: Record<FileStatus, { label: string; bgColor: string; textColor: string; dotColor: string }> = {
     UPLOADING: {
       label: 'Uploading',
@@ -43,49 +44,49 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
     },
     PENDING: {
       label: 'Pending',
-      bgColor: 'bg-amber-100',
-      textColor: 'text-amber-700',
-      dotColor: 'bg-amber-500',
+      bgColor: 'bg-gray-100',
+      textColor: 'text-gray-600',
+      dotColor: 'bg-gray-500',
     },
     SENT: {
       label: 'Sent',
-      bgColor: 'bg-amber-100',
-      textColor: 'text-amber-700',
-      dotColor: 'bg-amber-500',
-    },
-    IN_PROGRESS: {
-      label: 'In Progress',
-      bgColor: 'bg-blue-100',
+      bgColor: 'bg-blue-50',
       textColor: 'text-blue-700',
       dotColor: 'bg-blue-500',
     },
+    IN_PROGRESS: {
+      label: 'In Progress',
+      bgColor: 'bg-amber-50',
+      textColor: 'text-amber-800',
+      dotColor: 'bg-amber-500',
+    },
     SIGNED: {
       label: 'Signed',
-      bgColor: 'bg-blue-100',
+      bgColor: 'bg-blue-50',
       textColor: 'text-blue-700',
       dotColor: 'bg-blue-500',
     },
     COMPLETED: {
       label: 'Completed',
-      bgColor: 'bg-green-100',
+      bgColor: 'bg-green-50',
       textColor: 'text-green-700',
       dotColor: 'bg-green-500',
     },
     READY: {
       label: 'Ready',
-      bgColor: 'bg-green-100',
+      bgColor: 'bg-green-50',
       textColor: 'text-green-700',
       dotColor: 'bg-green-500',
     },
     LOCKED: {
       label: 'Locked',
-      bgColor: 'bg-purple-100',
-      textColor: 'text-purple-700',
-      dotColor: 'bg-purple-500',
+      bgColor: 'bg-gray-100',
+      textColor: 'text-gray-700',
+      dotColor: 'bg-gray-500',
     },
     FAILED: {
       label: 'Failed',
-      bgColor: 'bg-red-100',
+      bgColor: 'bg-red-50',
       textColor: 'text-red-700',
       dotColor: 'bg-red-500',
     },
@@ -95,9 +96,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 font-medium rounded-full ${sizeClasses[size]} ${config.bgColor} ${config.textColor}`}
+      className={`inline-flex items-center gap-1.5 font-medium rounded-full border border-transparent ${sizeClasses[size]} ${config.bgColor} ${config.textColor}`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${config.dotColor}`} />
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${config.dotColor}`} />
       {config.label}
     </span>
   );

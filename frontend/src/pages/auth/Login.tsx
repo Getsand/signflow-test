@@ -29,7 +29,12 @@ export const Login: React.FC = () => {
       // Login successful, redirect to dashboard
       navigate('/dashboard');
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Invalid email or password';
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : 'Invalid email or password';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -42,7 +47,7 @@ export const Login: React.FC = () => {
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-gray-500">
             Sign in to your account to continue
           </p>
         </div>
@@ -52,7 +57,7 @@ export const Login: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Global error message */}
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
                 {error}
               </div>
             )}

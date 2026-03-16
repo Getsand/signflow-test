@@ -18,11 +18,11 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   ...props
 }) => {
-  // Base styles
-  const baseStyles = 'bg-white rounded-xl border border-neutral-200 transition-smooth';
+  // Base styles – clean SaaS card
+  const baseStyles = 'bg-white rounded-xl border border-gray-200 transition-smooth card-shadow';
 
   // Hover styles
-  const hoverStyles = hover ? 'hover:shadow-lg hover:border-neutral-300 cursor-pointer' : 'shadow-card';
+  const hoverStyles = hover ? 'hover:shadow-md hover:border-gray-300 cursor-pointer' : '';
 
   // Padding styles
   const paddingStyles: Record<typeof padding, string> = {

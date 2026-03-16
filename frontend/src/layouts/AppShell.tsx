@@ -20,13 +20,10 @@ export interface AppShellProps {
  */
 export const AppShell: React.FC<AppShellProps> = ({ children }) => {
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Left Sidebar - fixed, never scrolls */}
+    <div className="min-h-screen bg-gray-50/80">
       <Sidebar />
-
-      {/* Main Content Area - only this part scrolls, with left margin for fixed sidebar */}
       <main className="lg:ml-64 min-h-screen overflow-y-auto">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {children}
         </div>
       </main>

@@ -291,7 +291,7 @@ export const NewSigningRequest: React.FC = () => {
   if (error && !fileData) {
     return (
       <div className="max-w-4xl mx-auto p-6">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <p className="text-red-700">{error}</p>
           <Button
             variant="secondary"
@@ -317,7 +317,7 @@ export const NewSigningRequest: React.FC = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl">
           <p className="text-sm text-red-700 mb-3">{error}</p>
           {error.includes("Repair fields") && template_id && (
             <Link
@@ -332,9 +332,9 @@ export const NewSigningRequest: React.FC = () => {
 
       {/* PDF Preview Section */}
       {pdfViewUrl && (
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+        <div className="bg-white border border-gray-200 rounded-xl card-shadow p-6 mb-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">PDF Preview with Signature Fields</h2>
-          <div className="bg-gray-50 rounded-lg p-4 overflow-auto max-h-[600px]">
+          <div className="bg-gray-50 rounded-xl p-4 overflow-auto max-h-[600px]">
             {isLoadingPdf ? (
               <div className="flex items-center justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
@@ -401,7 +401,7 @@ export const NewSigningRequest: React.FC = () => {
       {/* Form */}
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Template Info */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="bg-white border border-gray-200 rounded-xl card-shadow p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Template Information</h2>
           <div className="space-y-4">
             <div>
@@ -437,7 +437,7 @@ export const NewSigningRequest: React.FC = () => {
 
         {/* Signing Order - only show when more than one signer */}
         {roles.length > 1 && (
-          <div className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="bg-white border border-gray-200 rounded-xl card-shadow p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Signing Order</h2>
             <div className="space-y-3">
               <label className="flex items-center">
@@ -477,7 +477,7 @@ export const NewSigningRequest: React.FC = () => {
         )}
 
         {/* Recipients */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6">
+        <div className="bg-white border border-gray-200 rounded-xl card-shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-lg font-medium text-gray-900">

@@ -207,6 +207,77 @@ Open **http://localhost:5173** in your browser.
 
 ---
 
+## After git pull – Fix login and signup on MacBook
+
+If you **pulled the code from GitHub** on a MacBook and login/signup don’t work, do the following **on the MacBook only**. No code changes.
+
+### 1. Create or fix env files (they are not in git)
+
+**Backend** – In the `signflow` folder (same folder as `docker-compose.yml`), create or edit **`.env`** with at least:
+
+```env
+APP_NAME=SignFlo
+APP_ENV=development
+DEBUG=true
+DATABASE_URL=postgresql+asyncpg://signflow:signflow_dev_password@postgres:5432/signflow_db
+REDIS_URL=redis://redis:6379/0
+MINIO_INTERNAL_ENDPOINT=minio:9000
+MINIO_PUBLIC_ENDPOINT=host.docker.internal:9000
+MINIO_ACCESS_KEY=minioadmin
+MINIO_SECRET_KEY=minioadmin
+MINIO_BUCKET=signflow-documents
+MINIO_SECURE=false
+FRONTEND_BASE_URL=http://localhost:5173
+RESEND_API_KEY=
+EMAIL_FROM=noreply@example.com
+```
+
+**Frontend** – In **`signflow/frontend/`**, create **`.env`** with:
+
+```env
+VITE_API_URL=http://localhost:8000
+```
+
+Without this, the frontend may call the wrong URL and login/signup will fail.
+
+### 2. Start Docker and run migrations
+
+From **`signflow`**:
+
+```bash
+docker compose up -d postgres redis minio backend
+docker compose exec backend alembic upgrade head
+```
+
+The MacBook has its **own database** (empty after a fresh pull). Migrations create the `users` table and columns like `invited_by_id`. If you skip this, login/signup can return 500 or “column does not exist”.
+
+### 3. Create the MinIO bucket
+
+1. Open http://localhost:9001 and log in with `minioadmin` / `minioadmin`.
+2. Go to **Buckets** → **Create Bucket** → name: **`signflow-documents`** → Create.
+
+### 4. Restart frontend (so it reads `.env`)
+
+```bash
+cd signflow/frontend
+npm install
+npm run dev
+```
+
+Stop the dev server (Ctrl+C) and run `npm run dev` again if you added or changed `frontend/.env`.
+
+### 5. Register again on the MacBook
+
+The Mac database is **separate** from your Windows one. There are no users until you create one.
+
+1. Open http://localhost:5173.
+2. Click **Sign up** and register with email and password.
+3. Then use the same credentials to **Sign in**.
+
+After these steps, login and signup should work on the MacBook. No changes are required in the repo.
+
+---
+
 ## Summary
 
 - **FRONTEND_BASE_URL** for local run: **`http://localhost:5173`** (already correct in your setup).

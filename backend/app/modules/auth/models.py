@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Boolean, DateTime, ForeignKey
+from sqlalchemy import String, Boolean, DateTime
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -64,26 +64,6 @@ class User(Base):
         default=False,
         nullable=False,
         server_default="false"
-    )
-    
-    # User management (API / Zoho-style: invite, access, role)
-    invited_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    is_active: Mapped[bool] = mapped_column(
-        Boolean,
-        default=True,
-        nullable=False,
-        server_default="true",
-    )
-    role: Mapped[str] = mapped_column(
-        String(64),
-        default="member",
-        nullable=False,
-        server_default="member",
     )
     
     # Timestamps

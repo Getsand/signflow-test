@@ -257,7 +257,7 @@ export const Templates: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search templates by filename..."
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg text-sm placeholder-gray-400 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-smooth"
             />
             {searchQuery && (
               <button
@@ -290,18 +290,17 @@ export const Templates: React.FC = () => {
 
       {/* Error Message */}
       {error && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* Documents Grid */}
       {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        <div className="flex items-center justify-center py-16">
+          <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-200 border-t-indigo-600"></div>
         </div>
       ) : filteredFiles.length === 0 ? (
-        <div className="text-center py-16 bg-white border border-gray-200 rounded-lg">
+        <div className="text-center py-16 bg-white border border-gray-200 rounded-xl card-shadow">
           <div className="max-w-md mx-auto">
             <div className="flex items-center justify-center w-20 h-20 mx-auto bg-indigo-100 rounded-full">
               <svg
@@ -353,8 +352,8 @@ export const Templates: React.FC = () => {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-          <div className="hidden sm:grid sm:grid-cols-12 gap-4 px-4 py-3 bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden card-shadow">
+          <div className="hidden sm:grid sm:grid-cols-12 gap-4 px-4 py-3.5 bg-gray-50/80 border-b border-gray-200 text-xs font-semibold text-gray-500 uppercase tracking-wider">
             <div className="sm:col-span-5">Name</div>
             <div className="sm:col-span-2">Status</div>
             <div className="sm:col-span-3">Uploaded</div>
@@ -421,7 +420,7 @@ export const Templates: React.FC = () => {
                     </svg>
                   </button>
                   {openMenuId === file.id && (
-                    <div className="absolute right-0 mt-1 w-44 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                    <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl dropdown-shadow border border-gray-200 py-1 z-50">
                       <button
                         type="button"
                         onClick={(e) => {
@@ -467,11 +466,8 @@ export const Templates: React.FC = () => {
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50"
-          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-        >
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-modal border border-gray-200">
             <h3 className="text-lg font-semibold mb-2" style={{ color: '#111827' }}>
               Delete Template
             </h3>
@@ -502,11 +498,8 @@ export const Templates: React.FC = () => {
 
       {/* Rename Modal */}
       {renameState && (
-        <div
-          className="fixed inset-0 flex items-center justify-center z-50"
-          style={{ backgroundColor: 'rgba(0,0,0,0.45)' }}
-        >
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-modal border border-gray-200">
             <h3 className="text-lg font-semibold mb-2" style={{ color: '#111827' }}>
               Rename Template
             </h3>

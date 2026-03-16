@@ -20,10 +20,6 @@ from app.core.base import Base
 import app.models  # noqa: F401
 import app.modules.auth.models  # noqa: F401
 import app.modules.files.models  # noqa: F401
-try:
-    import app.api.models  # noqa: F401
-except ModuleNotFoundError:
-    pass  # API tables created by migration add_api_keys_and_usage_logs.py
 
 
 # Alembic Config object

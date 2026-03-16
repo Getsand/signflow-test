@@ -43,7 +43,12 @@ export const Signup: React.FC = () => {
       // Registration successful, user is automatically logged in
       navigate('/dashboard');
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Registration failed';
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : typeof err === 'object' && err !== null && 'message' in err
+            ? String((err as { message: unknown }).message)
+            : 'Registration failed';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -55,8 +60,8 @@ export const Signup: React.FC = () => {
       <div className="space-y-6">
         {/* Header */}
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-neutral-900">Create an account</h1>
-          <p className="mt-2 text-neutral-600">
+          <h1 className="text-3xl font-bold text-gray-900">Create an account</h1>
+          <p className="mt-2 text-gray-500">
             Get started with SignFlo today
           </p>
         </div>
@@ -66,7 +71,7 @@ export const Signup: React.FC = () => {
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Global error message */}
             {error && (
-              <div className="p-3 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 animate-fade-in">
+              <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
                 {error}
               </div>
             )}

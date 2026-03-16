@@ -40,12 +40,6 @@ class Settings(BaseSettings):
     EMAIL_FROM: str = Field(default="noreply@signflo.app", env="EMAIL_FROM")
     FRONTEND_BASE_URL: str = Field(default="http://localhost:5173", env="FRONTEND_BASE_URL")
 
-    # Public API
-    API_RATE_LIMIT_DEFAULT_PER_MINUTE: int = Field(
-        default=60,
-        env="API_RATE_LIMIT_DEFAULT_PER_MINUTE",
-    )
-
     class Config:
         # Try .env in current dir (e.g. /app in Docker) and parent (e.g. project root when run from backend/)
         env_file = [".env", "../.env"]

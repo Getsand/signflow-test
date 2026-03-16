@@ -1,17 +1,48 @@
 @import "tailwindcss";
 
-/* Import Inter font from Google Fonts */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* Design system – SaaS-style (Zoho Sign / Stripe inspired) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Primary – professional blue */
+  --color-primary: 79 70 229;
+  --color-primary-hover: 67 56 202;
+  --color-primary-light: 238 242 255;
+  /* Surfaces */
+  --color-surface: 255 255 255;
+  --color-surface-subtle: 249 250 251;
+  --color-border: 229 231 235;
+  --color-border-focus: 99 102 241;
+  /* Text */
+  --color-text: 17 24 39;
+  --color-text-muted: 107 114 128;
+  --color-text-subtle: 75 85 99;
+  /* Status */
+  --status-draft: 107 114 128;
+  --status-sent: 59 130 246;
+  --status-progress: 245 158 11;
+  --status-completed: 34 197 94;
+  --status-failed: 239 68 68;
+  /* Spacing */
+  --sidebar-width: 16rem;
+  --content-max: 80rem;
+  /* Shadows */
+  --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.06), 0 1px 2px -1px rgb(0 0 0 / 0.06);
+  --shadow-dropdown: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+  --shadow-modal: 0 25px 50px -12px rgb(0 0 0 / 0.15);
+}
 
 @layer base {
   * {
-    border-color: #e5e5e5;
+    border-color: rgb(var(--color-border));
   }
-  
+
   body {
-    background-color: #fafafa;
-    color: #171717;
+    background-color: rgb(var(--color-surface-subtle));
+    color: rgb(var(--color-text));
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 0.9375rem;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
@@ -19,45 +50,41 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Inter', system-ui, sans-serif;
     font-weight: 600;
+    letter-spacing: -0.025em;
   }
 
   h1 {
-    font-size: 2.25rem;
-    line-height: 2.5rem;
-  }
-
-  h2 {
     font-size: 1.875rem;
     line-height: 2.25rem;
   }
 
-  h3 {
+  h2 {
     font-size: 1.5rem;
     line-height: 2rem;
   }
 
-  h4 {
+  h3 {
     font-size: 1.25rem;
     line-height: 1.75rem;
   }
 
+  h4 {
+    font-size: 1.125rem;
+    line-height: 1.5rem;
+  }
+
   @media (min-width: 768px) {
     h1 {
-      font-size: 3rem;
-      line-height: 1;
-    }
-
-    h2 {
       font-size: 2.25rem;
       line-height: 2.5rem;
     }
 
-    h3 {
+    h2 {
       font-size: 1.875rem;
       line-height: 2.25rem;
     }
 
-    h4 {
+    h3 {
       font-size: 1.5rem;
       line-height: 2rem;
     }
@@ -65,7 +92,6 @@
 }
 
 @layer components {
-  /* Focus states for accessibility */
   .focus-ring {
     outline: 2px solid transparent;
     outline-offset: 2px;
@@ -73,14 +99,25 @@
 
   .focus-ring:focus {
     outline: none;
-    box-shadow: 0 0 0 2px #fff, 0 0 0 4px #6366f1;
+    box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgb(var(--color-border-focus));
   }
 
-  /* Smooth transitions */
   .transition-smooth {
-    transition-property: all;
-    transition-timing-function: ease-in-out;
-    transition-duration: 200ms;
+    transition-property: color, background-color, border-color, box-shadow;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 150ms;
+  }
+
+  .card-shadow {
+    box-shadow: var(--shadow-card);
+  }
+
+  .dropdown-shadow {
+    box-shadow: var(--shadow-dropdown);
+  }
+
+  .shadow-modal {
+    box-shadow: var(--shadow-modal);
   }
 }
 

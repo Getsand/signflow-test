@@ -108,35 +108,32 @@ export const Upload: React.FC = () => {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-slide-up">
-        {/* Page Header */}
+    <div className="max-w-2xl mx-auto space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900">Upload Document</h1>
-          <p className="mt-2 text-neutral-600">
-            Upload a PDF document to add signature fields and send for signing.
+          <h1 className="text-2xl font-semibold text-gray-900">Upload Document</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Upload a PDF to add signature fields and send for signing.
           </p>
         </div>
 
-        {/* Upload Card */}
         <Card padding="lg">
           <CardHeader>
-            <CardTitle>Select Document</CardTitle>
+            <CardTitle className="text-lg">Select Document</CardTitle>
             <CardDescription>
               Choose a PDF file from your computer. Maximum file size: 10MB.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Drag and Drop Area */}
             {!selectedFile && (
               <div
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
-                className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-smooth ${
+                className={`relative border-2 border-dashed rounded-xl p-10 text-center transition-smooth bg-gray-50/50 ${
                   dragActive
-                    ? 'border-primary-500 bg-primary-50'
-                    : 'border-neutral-300 hover:border-primary-400 hover:bg-neutral-50'
+                    ? 'border-indigo-500 bg-indigo-50/80'
+                    : 'border-gray-300 hover:border-indigo-400 hover:bg-gray-50'
                 }`}
               >
                 <input
@@ -146,9 +143,9 @@ export const Upload: React.FC = () => {
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
                 <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center">
+                  <div className="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center">
                     <svg
-                      className="w-8 h-8 text-primary-600"
+                      className="w-7 h-7 text-indigo-600"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -162,23 +159,22 @@ export const Upload: React.FC = () => {
                     </svg>
                   </div>
                   <div>
-                    <p className="text-lg font-medium text-neutral-900">
+                    <p className="text-base font-medium text-gray-900">
                       Drag and drop your PDF here
                     </p>
-                    <p className="text-sm text-neutral-600 mt-1">
+                    <p className="text-sm text-gray-500 mt-1">
                       or click to browse files
                     </p>
                   </div>
-                  <p className="text-xs text-neutral-500">
-                    PDF files only • Maximum 10MB
+                  <p className="text-xs text-gray-400">
+                    PDF only • Max 10MB
                   </p>
                 </div>
               </div>
             )}
 
-            {            /* Error Message */}
             {error && (
-              <div className="p-4 bg-error-50 border border-error-200 rounded-lg text-sm text-error-700 mb-6 animate-fade-in">
+              <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700 mb-6">
                 <div className="flex items-start gap-3">
                   <svg
                     className="w-5 h-5 flex-shrink-0 mt-0.5"
@@ -204,10 +200,10 @@ export const Upload: React.FC = () => {
             {/* Selected File Preview */}
             {selectedFile && (
               <div className="space-y-6">
-                <div className="flex items-center gap-4 p-4 bg-neutral-50 rounded-lg border border-neutral-200">
-                  <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center flex-shrink-0">
                     <svg
-                      className="w-6 h-6 text-primary-600"
+                      className="w-6 h-6 text-indigo-600"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -221,17 +217,17 @@ export const Upload: React.FC = () => {
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-neutral-900 truncate">
+                    <p className="font-medium text-gray-900 truncate">
                       {selectedFile.name}
                     </p>
-                    <p className="text-sm text-neutral-600">
+                    <p className="text-sm text-gray-500">
                       {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                     </p>
                   </div>
                   <button
                     onClick={() => setSelectedFile(null)}
                     disabled={uploading}
-                    className="p-2 text-neutral-500 hover:text-error-600 transition-smooth disabled:opacity-50"
+                    className="p-2 text-gray-500 hover:text-red-600 transition-smooth disabled:opacity-50"
                   >
                     <svg
                       className="w-5 h-5"
@@ -253,12 +249,12 @@ export const Upload: React.FC = () => {
                 {uploading && (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-neutral-700">Uploading...</span>
-                      <span className="text-neutral-600">{uploadProgress}%</span>
+                      <span className="font-medium text-gray-700">Uploading...</span>
+                      <span className="text-gray-600">{uploadProgress}%</span>
                     </div>
-                    <div className="w-full bg-neutral-200 rounded-full h-2 overflow-hidden">
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                       <div
-                        className="bg-primary-600 h-2 rounded-full transition-all duration-300"
+                        className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
                         style={{ width: `${uploadProgress}%` }}
                       />
                     </div>
@@ -295,43 +291,25 @@ export const Upload: React.FC = () => {
         {/* Info Section */}
         <Card>
           <CardHeader>
-            <CardTitle>What happens after upload?</CardTitle>
+            <CardTitle className="text-lg">What happens after upload?</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold">
-                  1
+              {[
+                { n: 1, title: 'Add Signature Fields', desc: 'Place signature fields on your document where signers need to sign.' },
+                { n: 2, title: 'Assign Signers', desc: 'Specify who needs to sign each field.' },
+                { n: 3, title: 'Send for Signature', desc: 'Signers will receive notifications and can sign the document.' },
+              ].map(({ n, title, desc }) => (
+                <div key={n} className="flex items-start gap-3">
+                  <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-semibold">
+                    {n}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">{title}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{desc}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-neutral-900">Add Signature Fields</p>
-                  <p className="text-sm text-neutral-600 mt-0.5">
-                    Place signature fields on your document where signers need to sign.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold">
-                  2
-                </div>
-                <div>
-                  <p className="font-medium text-neutral-900">Assign Signers</p>
-                  <p className="text-sm text-neutral-600 mt-0.5">
-                    Specify who needs to sign each field.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold">
-                  3
-                </div>
-                <div>
-                  <p className="font-medium text-neutral-900">Send for Signature</p>
-                  <p className="text-sm text-neutral-600 mt-0.5">
-                    Signers will receive notifications and can sign the document.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </CardContent>
         </Card>

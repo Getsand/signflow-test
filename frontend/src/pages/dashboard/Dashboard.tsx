@@ -51,74 +51,68 @@ export const Dashboard: React.FC = () => {
   const pendingCount = (stats?.sent || 0) + (stats?.in_progress || 0);
 
   return (
-    <div className="space-y-8 animate-slide-up">
+    <div className="space-y-8">
         {/* Page Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-2 text-gray-600">
-            Welcome back! Here's what's happening with your documents.
+          <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Welcome back. Here's what's happening with your documents.
           </p>
         </div>
 
-        {/* Error Message */}
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
             {error}
           </div>
         )}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Total Documents */}
-          <Card>
+        {/* Stats Grid – modern card layout */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card padding="none">
             <CardContent>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between p-5">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Documents</p>
-                  <p className="mt-2 text-3xl font-bold text-gray-900">
-                    {isLoading ? '...' : stats?.total || 0}
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Documents</p>
+                  <p className="mt-1 text-2xl font-semibold text-gray-900">
+                    {isLoading ? '—' : stats?.total ?? 0}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-11 h-11 bg-indigo-50 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                 </div>
               </div>
             </CardContent>
           </Card>
-
-          {/* Pending Signatures */}
-          <Card>
+          <Card padding="none">
             <CardContent>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between p-5">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Pending Signatures</p>
-                  <p className="mt-2 text-3xl font-bold text-amber-600">
-                    {isLoading ? '...' : pendingCount}
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pending</p>
+                  <p className="mt-1 text-2xl font-semibold text-amber-600">
+                    {isLoading ? '—' : pendingCount}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-11 h-11 bg-amber-50 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>
             </CardContent>
           </Card>
-
-          {/* Completed Documents */}
-          <Card>
+          <Card padding="none">
             <CardContent>
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between p-5">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Completed Documents</p>
-                  <p className="mt-2 text-3xl font-bold text-green-600">
-                    {isLoading ? '...' : stats?.completed || 0}
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Completed</p>
+                  <p className="mt-1 text-2xl font-semibold text-green-600">
+                    {isLoading ? '—' : stats?.completed ?? 0}
                   </p>
                 </div>
-                <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-11 h-11 bg-green-50 rounded-xl flex items-center justify-center">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
@@ -127,13 +121,12 @@ export const Dashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* Recent Documents */}
         {!isLoading && recentDocuments.length > 0 && (
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Recent Documents</CardTitle>
+                  <CardTitle className="text-lg">Recent Documents</CardTitle>
                   <CardDescription>Your latest signing requests</CardDescription>
                 </div>
                 <Link to="/documents">
@@ -142,22 +135,22 @@ export const Dashboard: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {recentDocuments.map((doc) => (
                   <Link
                     key={doc.id}
                     to={`/documents/${doc.id}`}
-                    className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors"
+                    className="flex items-center justify-between p-3 rounded-lg border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-smooth"
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
-                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                         </svg>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">{doc.title}</p>
-                        <p className="text-sm text-gray-500">
+                        <p className="font-medium text-gray-900 truncate text-sm">{doc.title}</p>
+                        <p className="text-xs text-gray-500">
                           {new Date(doc.created_at).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -177,22 +170,22 @@ export const Dashboard: React.FC = () => {
         {/* Quick Actions */}
         <Card>
           <CardHeader>
-            <CardTitle>Quick Actions</CardTitle>
+            <CardTitle className="text-lg">Quick Actions</CardTitle>
             <CardDescription>Common tasks to get you started</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Link to="/upload">
-                <Button variant="primary" size="lg" fullWidth>
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <Button variant="primary" size="lg" fullWidth className="justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
                   Upload Document
                 </Button>
               </Link>
               <Link to="/documents">
-                <Button variant="outline" size="lg" fullWidth>
-                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <Button variant="outline" size="lg" fullWidth className="justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   View All Documents
@@ -202,47 +195,28 @@ export const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* How SignFlo Works */}
         <Card>
           <CardHeader>
-            <CardTitle>How SignFlo Works</CardTitle>
+            <CardTitle className="text-lg">How SignFlo Works</CardTitle>
             <CardDescription>A simple guide to getting started</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold">
-                  1
+              {[
+                { step: 1, title: 'Upload Your Document', desc: 'Start by uploading any PDF document you need signed.' },
+                { step: 2, title: 'Add Signature Fields', desc: 'Drag and drop signature fields onto your document.' },
+                { step: 3, title: 'Assign Signers & Send', desc: 'Assign fields to specific users and send the document for signing.' },
+              ].map(({ step, title, desc }) => (
+                <div key={step} className="flex items-start gap-4">
+                  <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center shrink-0 text-sm font-semibold">
+                    {step}
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 text-sm">{title}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">{desc}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-gray-900">Upload Your Document</p>
-                  <p className="text-sm text-gray-600 mt-0.5">
-                    Start by uploading any PDF document you need signed.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold">
-                  2
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Add Signature Fields</p>
-                  <p className="text-sm text-gray-600 mt-0.5">
-                    Drag and drop signature fields onto your document.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-6 h-6 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center flex-shrink-0 text-sm font-semibold">
-                  3
-                </div>
-                <div>
-                  <p className="font-medium text-gray-900">Assign Signers & Send</p>
-                  <p className="text-sm text-gray-600 mt-0.5">
-                    Assign fields to specific users and send the document for signing.
-                  </p>
-                </div>
-              </div>
+              ))}
             </div>
           </CardContent>
         </Card>

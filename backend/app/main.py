@@ -87,32 +87,6 @@ app.include_router(signing_requests_router)
 from app.modules.signing_requests.signing_router import router as signing_router
 app.include_router(signing_router)
 
-# API keys under /api/v1 – always mount first so Create API Key never returns 404 (bad token → 401)
-try:
-    from app.api.controllers import api_keys as api_keys_controller
-    app.include_router(api_keys_controller.router, prefix="/api/v1")
-    logger.info("API keys routes loaded: POST/GET /api/v1/api-keys, DELETE /api/v1/api-keys/{id}")
-except Exception as e:
-    logger.warning("API keys router not loaded: %s", e)
-
-# Public API under /api/v1 (documents, requests + api-keys again if full router loads)
-try:
-    from app.api.router import api_router
-    app.include_router(api_router, prefix="/api/v1")
-    logger.info("Public API (api_router) loaded: /api/v1/documents, /api/v1/requests, /api/v1/api-keys")
-except Exception as e:
-    logger.exception("Public API (app.api) failed to load: %s", e)
-    from fastapi import APIRouter
-    _fallback = APIRouter(tags=["Public API (fallback)"])
-    @_fallback.get("", include_in_schema=True)
-    async def _api_v1_fallback():
-        return {
-            "error": "Public API module failed to load",
-            "detail": str(e),
-            "hint": "Check that app/api and app/api/controllers exist; restart the backend.",
-        }
-    app.include_router(_fallback, prefix="/api/v1")
-
 # 5️⃣ EXCEPTION HANDLERS
 @app.exception_handler(SignFlowException)
 async def signflow_exception_handler(

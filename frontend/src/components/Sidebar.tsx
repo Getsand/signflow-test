@@ -95,24 +95,24 @@ export const Sidebar: React.FC<SidebarProps> = () => {
         `}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center px-6 border-b border-gray-200">
+        <div className="h-14 flex items-center px-5 border-b border-gray-100">
           <Link 
             to="/dashboard" 
-            className="flex items-center gap-2"
+            className="flex items-center gap-3"
             onClick={() => {
               setMobileOpen(false);
               setProfileOpen(false);
             }}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-indigo-800 rounded-lg flex items-center justify-center">
+            <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
               <span className="text-white font-bold text-lg">S</span>
             </div>
-            <span className="text-xl font-bold text-gray-900">SignFlo</span>
+            <span className="text-lg font-semibold text-gray-900 tracking-tight">SignFlo</span>
           </Link>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
           {sidebarItems.map((item) => {
             const active = isActive(item.path);
             return (
@@ -124,31 +124,28 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                   setProfileOpen(false);
                 }}
                 className={`
-                  flex items-center gap-3 px-4 py-2.5 rounded-lg
-                  transition-colors duration-150
-                  ${
-                    active
-                      ? 'bg-indigo-50 text-indigo-700 font-medium'
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                  }
+                  flex items-center gap-3 py-2.5 rounded-lg transition-smooth
+                  ${active
+                    ? 'bg-indigo-50 text-indigo-700 font-medium border-l-2 border-indigo-600 pl-[10px] pr-3'
+                    : 'px-3 text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
                 `}
               >
-                <span className={active ? 'text-indigo-600' : 'text-gray-500'}>{item.icon}</span>
-                <span>{item.label}</span>
+                <span className={`shrink-0 ${active ? 'text-indigo-600' : 'text-gray-400'}`}>{item.icon}</span>
+                <span className="text-sm">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        {/* User block at bottom - Zoho Sign style */}
+        {/* User block at bottom */}
         {user && (
-          <div className="border-t border-gray-200 p-4 mt-auto shrink-0 relative">
+          <div className="border-t border-gray-100 p-3 mt-auto shrink-0 relative bg-gray-50/50">
             <button
               type="button"
               onClick={() => setProfileOpen(!profileOpen)}
-              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors text-left"
+              className="w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-100 transition-smooth text-left"
             >
-              <div className="w-9 h-9 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center font-semibold text-sm shrink-0">
+              <div className="w-9 h-9 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-semibold text-sm shrink-0">
                 {user.name?.charAt(0).toUpperCase() || 'U'}
               </div>
               <div className="min-w-0 flex-1">
@@ -156,7 +153,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                 <p className="text-xs text-gray-500 truncate">{user.email}</p>
               </div>
               <svg
-                className={`w-4 h-4 text-gray-500 shrink-0 transition-transform ${profileOpen ? 'rotate-180' : ''}`}
+                className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${profileOpen ? 'rotate-180' : ''}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -166,10 +163,10 @@ export const Sidebar: React.FC<SidebarProps> = () => {
             </button>
 
             {profileOpen && (
-              <div className="absolute left-4 right-4 bottom-full mb-2 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                  <div className="px-4 py-3 border-b border-gray-200">
+              <div className="absolute left-3 right-3 bottom-full mb-2 bg-white rounded-xl dropdown-shadow border border-gray-200 py-2 z-50">
+                  <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900">{user.name || 'User'}</p>
-                    <p className="text-xs text-gray-600 mt-0.5 truncate">{user.email}</p>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">{user.email}</p>
                   </div>
                   <button
                     type="button"
@@ -177,7 +174,7 @@ export const Sidebar: React.FC<SidebarProps> = () => {
                       logout();
                       setProfileOpen(false);
                     }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-smooth rounded-none"
                   >
                     Sign out
                   </button>
@@ -189,10 +186,11 @@ export const Sidebar: React.FC<SidebarProps> = () => {
 
       {/* Mobile menu button */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 bg-white rounded-lg card-shadow border border-gray-200 hover:bg-gray-50 transition-smooth"
         onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label="Open menu"
       >
-        <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>

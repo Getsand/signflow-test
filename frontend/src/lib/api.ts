@@ -54,10 +54,19 @@ api.interceptors.response.use(
         }
       }
 
-      // Extract error message from response
-      const errorData = error.response.data as { detail?: string; message?: string };
-      const message = errorData?.detail || errorData?.message || 'An error occurred';
-      
+      // Extract error message (backend may return detail as string or FastAPI validation array)
+      const errorData = error.response.data as { detail?: string | Array<{ msg?: string; loc?: unknown }>; message?: string };
+      let message = errorData?.message || 'An error occurred';
+      if (errorData?.detail != null) {
+        if (typeof errorData.detail === 'string') {
+          message = errorData.detail;
+        } else if (Array.isArray(errorData.detail) && errorData.detail.length > 0) {
+          const first = errorData.detail[0];
+          message = (first && typeof first.msg === 'string') ? first.msg : String(errorData.detail[0]);
+        } else if (typeof errorData.detail === 'object') {
+          message = (errorData.detail as { message?: string }).message || JSON.stringify(errorData.detail);
+        }
+      }
       return Promise.reject(new Error(message));
     } else if (error.request) {
       // Request made but no response received
