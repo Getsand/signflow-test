@@ -254,6 +254,43 @@ async def get_signing_request(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
+@router.get("/{signing_request_id}/recipient-sign-tokens")
+async def get_recipient_sign_tokens(
+    signing_request_id: UUID,
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Read-only helper for the Zoho-compatible wrapper.
+
+    Returns signing tokens for each recipient on a signing request so the wrapper can build
+    `sign_url` values compatible with the existing token-based frontend signing flow.
+    """
+    repo = SigningRequestRepository(db)
+
+    signing_request = await repo.get_by_id(
+        signing_request_id=signing_request_id,
+        owner_id=current_user.id,
+    )
+    if not signing_request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Signing request not found")
+
+    # Signing tokens are already stored on recipients when the request is sent.
+    # For DRAFT/in-progress states, some tokens can be None.
+    return [
+        {
+            "recipient_id": str(rec.id),
+            "role": rec.role,
+            "email": rec.email,
+            "order_index": rec.order_index,
+            "status": rec.status.value,
+            "sent_at": rec.sent_at.isoformat() if rec.sent_at else None,
+            "signing_token": rec.signing_token,
+        }
+        for rec in (signing_request.recipients or [])
+    ]
+
+
 @router.get("/{signing_request_id}/download")
 async def download_signed_pdf(
     signing_request_id: UUID,

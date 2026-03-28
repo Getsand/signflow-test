@@ -57,7 +57,7 @@ Using `python -m uvicorn` from inside `signflo-api-wrapper` ensures the wrapper�
 - **API info:** http://127.0.0.1:9080/api/v1  
 - **Backend health via wrapper:** http://127.0.0.1:9080/api/v1/backend/health  
 
-Protected routes (documents, keys) require **Authorization: Bearer YOUR_API_KEY** or **X-API-Key: YOUR_API_KEY**. Create the first key with `POST /api/v1/keys` and header **X-Admin-Secret: your-admin-secret** (see `.env`). See **CURL_EXAMPLES.md** for all endpoints.
+Protected routes (documents, keys) require **Authorization: Bearer YOUR_API_KEY** or **X-API-Key: YOUR_API_KEY**. Create the first key with `POST /api/v1/keys` and header **X-Admin-Secret: your-admin-secret** (see `.env`). See **[API_GUIDE.md](API_GUIDE.md)** for all endpoints.
 
 Flow: **Client → wrapper (9080) → SignFlo backend (8000)**.
 
@@ -74,13 +74,8 @@ Do these in order:
 3. **WinError 10013 (port forbidden / in use)**  
    The wrapper now uses **port 9080** instead of 9000. If you still get 10013, close any other app using 9080, or set `PORT=9090` in a `.env` file and use that port in the run script.
 
-4. **Optional: minimal test**  
-   To see if the problem is Uvicorn or our app, run:
-   ```bash
-   cd signflo-api-wrapper
-   python -m uvicorn test_minimal:app --host 127.0.0.1 --port 9001
-   ```
-   Open http://127.0.0.1:9001/ping. If that works, the issue is in `app/main.py`. If it also fails, the issue is Uvicorn or the browser.
+4. **Optional: isolate HTTP**  
+   If `http://127.0.0.1:9080/ping` fails, try another port via `PORT` in `.env` and your run script, or check firewall/antivirus blocking local servers.
 
 ## Optional: override with .env
 

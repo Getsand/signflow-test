@@ -1,0 +1,294 @@
+{
+  "info": {
+    "name": "SignFlo API Wrapper",
+    "_postman_id": "12345-abcde",
+    "description": "Postman collection for the SignFlo-compatible wrapper (port 9080).\n\n## Auto variables (Collection Runner)\n1. Select this collection → **Variables** tab: set `base_url`, `pdf_path` if needed.\n2. Optional: create/select an **Environment** — the collection Test script updates **both** `collectionVariables` and `environment` when an environment is active.\n3. **Run collection** (Runner): order is top-to-bottom. After **Get Access Token**, `access_token` / `refresh_token` fill in. After **Create Request**, `request_id` fills in. After **List Actions**, `action_id` fills in. After **Create Template**, `template_id` fills in.\n4. **Create Request** → Body → **file**: re-select your PDF after import if you get empty-file / size errors.\n\nAuth header: `SignFlo-oauthtoken {{access_token}}`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://127.0.0.1:9080" },
+    { "key": "access_token", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "request_id", "value": "" },
+    { "key": "action_id", "value": "" },
+    { "key": "template_id", "value": "" },
+    {
+      "key": "pdf_path",
+      "value": "C:/Users/hi/Desktop/website signflow/test.pdf",
+      "type": "string"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if ((pm.info.requestName || '') === 'Create Request') {",
+          "  const p = pm.collectionVariables.get('pdf_path');",
+          "  if (p) console.log('Hint: attach PDF (e.g. ' + p + ') on Body → form-data → file if you see size/empty errors.');",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "function saveVar(key, val) {",
+          "  if (val === undefined || val === null || String(val).length === 0) return;",
+          "  const s = String(val);",
+          "  pm.collectionVariables.set(key, s);",
+          "  try {",
+          "    if (pm.environment && pm.environment.name) {",
+          "      pm.environment.set(key, s);",
+          "    }",
+          "  } catch (e) { /* no active environment */ }",
+          "}",
+          "",
+          "const reqName = pm.info.requestName || '';",
+          "",
+          "try {",
+          "  const res = pm.response.json();",
+          "",
+          "  if (reqName === 'Get Access Token') {",
+          "    saveVar('access_token', res.access_token);",
+          "    saveVar('refresh_token', res.refresh_token);",
+          "  }",
+          "",
+          "  if (reqName === 'Create Request') {",
+          "    if (pm.response.code === 422) {",
+          "      const m = String(res.message || '');",
+          "      if (m.includes('size') || m.includes('greater_than')) {",
+          "        console.warn('EMPTY FILE: Body → form-data → file → Select File again.');",
+          "      }",
+          "    }",
+          "    if (res.requests && res.requests.request_id) {",
+          "      saveVar('request_id', res.requests.request_id);",
+          "    }",
+          "  }",
+          "",
+          "  if (reqName === 'Send Request' && res.requests && res.requests.request_id) {",
+          "    saveVar('request_id', res.requests.request_id);",
+          "  }",
+          "",
+          "  if (reqName === 'Get Request Details' && res.requests && res.requests.request_id) {",
+          "    saveVar('request_id', res.requests.request_id);",
+          "  }",
+          "",
+          "  if (reqName === 'List Actions' && res.actions && res.actions.length) {",
+          "    const withId = res.actions.find(function (a) { return a.action_id; });",
+          "    if (withId) saveVar('action_id', withId.action_id);",
+          "    else if (res.actions[0].action_id) saveVar('action_id', res.actions[0].action_id);",
+          "  }",
+          "",
+          "  if (reqName === 'Create Template' && res.templates && res.templates.template_id) {",
+          "    saveVar('template_id', res.templates.template_id);",
+          "  }",
+          "} catch (e) {",
+          "  /* non-JSON body (e.g. PDF) */",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "Get Access Token",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/oauth/v2/token",
+          "host": ["{{base_url}}"],
+          "path": ["oauth", "v2", "token"]
+        },
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "authorization_code" },
+            { "key": "code", "value": "TEST_CODE" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Create Request",
+      "request": {
+        "description": "Zoho-shaped **requests** JSON (actions + fields). Attach a real PDF on **file**.",
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests"]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "C:/Users/hi/Desktop/website signflow/test.pdf",
+              "disabled": false,
+              "description": "Re-Select File after import. Same path as collection variable pdf_path."
+            },
+            {
+              "key": "requests",
+              "type": "text",
+              "value": "{\"request_name\":\"Test Agreement\",\"signing_order\":\"SEQUENTIAL\",\"actions\":[{\"recipient_email\":\"john@test.com\",\"recipient_name\":\"Signer 1\",\"action_type\":\"SIGN\",\"fields\":[{\"field_type_name\":\"Signature\",\"field_label\":\"Sign\",\"x_value\":\"100\",\"y_value\":\"150\",\"width\":\"120\",\"height\":\"40\",\"page_no\":0}]}]}",
+              "disabled": false
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Send Request",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests/{{request_id}}/send",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests", "{{request_id}}", "send"]
+        }
+      }
+    },
+    {
+      "name": "Get Request Details",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests/{{request_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests", "{{request_id}}"]
+        }
+      }
+    },
+    {
+      "name": "List Requests",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests?page=1&per_page=10",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "per_page", "value": "10" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Actions",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests/{{request_id}}/actions",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests", "{{request_id}}", "actions"]
+        }
+      }
+    },
+    {
+      "name": "Get Sign URL",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests/{{request_id}}/actions/{{action_id}}/sign",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests", "{{request_id}}", "actions", "{{action_id}}", "sign"]
+        }
+      }
+    },
+    {
+      "name": "Download PDF",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests/{{request_id}}/pdf",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests", "{{request_id}}", "pdf"]
+        }
+      }
+    },
+    {
+      "name": "Create Template",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/templates",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "templates"]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "C:/Users/hi/Desktop/website signflow/test.pdf",
+              "disabled": false
+            },
+            { "key": "template_name", "type": "text", "value": "template.pdf", "disabled": false }
+          ]
+        }
+      }
+    },
+    {
+      "name": "List Templates",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/templates",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "templates"]
+        }
+      }
+    },
+    {
+      "name": "Delete Request",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Authorization", "value": "SignFlo-oauthtoken {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/requests/{{request_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["api", "v1", "requests", "{{request_id}}"]
+        }
+      }
+    }
+  ]
+}

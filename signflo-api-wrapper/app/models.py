@@ -4,7 +4,7 @@ Wrapper DB models: API keys and usage logs.
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Column
+from sqlalchemy import String, Integer, DateTime, ForeignKey, Column, Text
 from sqlalchemy.dialects.sqlite import CHAR
 from sqlalchemy.orm import relationship
 
@@ -40,3 +40,20 @@ class ApiUsageLog(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     api_key = relationship("ApiKey", back_populates="usage_logs")
+
+
+class WrapperZohoRequest(Base):
+    """
+    Draft Zoho-shaped requests kept only in the wrapper until POST .../send.
+
+    SignFlo auto-sends when a signing request is created while the template already has
+    signature fields, so we defer backend POST /signing-requests until send.
+    """
+
+    __tablename__ = "wrapper_zoho_requests"
+
+    wrapper_id = Column(CHAR(36), primary_key=True)
+    file_id = Column(String(36), nullable=False, index=True)
+    requests_json = Column(Text, nullable=False)
+    backend_signing_request_id = Column(String(36), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
